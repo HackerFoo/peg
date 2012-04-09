@@ -1,0 +1,30 @@
+[[True] [False] \/] "Boolean" :def
+
+[Int eq? swap Int eq? && Int swap assert] "op2i" :def
+[Int eq? swap int? && Int swap assert] "op2i" :def
+[int? swap Int eq? && Int swap assert] "op2i" :def
+[Float eq? swap Float eq? && Float swap assert] "op2f" :def
+[Float eq? swap float? && Float swap assert] "op2f" :def
+[float? swap Float eq? && Float swap assert] "op2f" :def
+[Int eq? swap Int eq? && Boolean swap assert] "op2ib" :def
+[Int eq? swap int? && Boolean swap assert] "op2ib" :def
+[int? swap Int eq? && Boolean swap assert] "op2ib" :def
+[Float eq? swap Float eq? && Boolean swap assert] "op2fb" :def
+[Float eq? swap float? && Boolean swap assert] "op2fb" :def
+[float? swap Float eq? && Boolean swap assert] "op2fb" :def
+[op2i] "+" :def
+[op2i] "-" :def
+[op2i] "*" :def
+[op2i] "div" :def
+[op2f] "+" :def
+[op2f] "-" :def
+[op2f] "*" :def
+[op2f] "/" :def
+[op2ib] ">" :def
+[op2ib] "<" :def
+[op2ib] ">=" :def
+[op2ib] "<=" :def
+[op2fb] ">" :def
+[op2fb] "<" :def
+[op2fb] ">=" :def
+[op2fb] "<=" :def

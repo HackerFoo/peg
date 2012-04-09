@@ -1,0 +1,364 @@
+-- Booleans
+
+-- logical negation
+-- ( Boolean not -> Boolean )
+[[False] [True] ifte] "not" :def
+
+-- logical conjunction
+-- ( Boolean Boolean && -> Boolean )
+[[] [pop False] ifte] "&&" :def
+
+-- logical disjunction
+-- ( Boolean Boolean || -> Boolean )
+[[pop True] [] ifte] "||" :def
+
+-- comparisons
+-- select greater operand
+-- (a a >=) => ( a a max -> a )
+[dup2 >= [pop] [swap pop] ifte] "max" :def
+
+-- select lesser operand
+-- (a a <=) => ( a a min -> a )
+[dup2 <= [pop] [swap pop] ifte] "min" :def
+
+-- numbers
+
+--   integer
+
+-- flip sign
+-- ( Int negate -> Int )
+[0 swap - ] "negate" :def
+-- ( Double negate -> Double )
+[0.0 swap - ] "negate" :def
+
+-- positive magnitude
+-- ( Int abs -> Int )
+[dup 0 < [negate] [] ifte] "abs" :def
+-- ( Double abs -> Double )
+[dup 0.0 < [negate] [] ifte] "abs" :def
+
+-- dup signum swap abs * == id
+-- ( Int signum -> Int )
+[dup 0 < [pop -1] [0 > [1] [0] ifte] ifte] "signum" :def
+-- ( Double signum -> Double )
+[dup 0.0 < [pop -1.0] [0.0 > [1.0] [0.0] ifte] ifte] "signum" :def
+
+--   float
+
+-- reciprocal
+-- ( Double recip -> Double )
+[1.0 swap /] "recip" :def
+
+-- combinators
+
+-- x p f until applies f to x until p holds
+-- ( a ( a -> Boolean ) ( a -> a ) until -> a )
+[[dup2 $] dip swap [pop2] [dup dip2 until] ifte] "until" :def
+
+-- ( ( a -> b ) fix -> b )
+[dup $ swap pop] "fix" :def
+-- example
+-- [[rollup dup2 >=
+--   [dup rollup - swap rolldown dup $]
+--   [pop] ifte] fix] "mod" :def
+
+-- ( A Boolean ( A -> B ) ( A -> C ) ifte -> B \/ C )
+[False pushr swap True pushr rolldown [\/ $] dip eq? assert] "ifte" :def
+
+-- stack operators
+
+-- ( a b over -> a b a )
+[swap dup [swap] dip] "over" :def
+
+-- ( a b c over2 -> a b c a )
+[[over] dip swap] "over2" :def
+
+-- ( a b c d over3 -> a b c d a )
+[[over2] dip swap] "over3" :def
+
+-- ( a b c d e over4 -> a b c d e a )
+[[over3] dip swap] "over4" :def
+
+-- ( a b nip -> b )
+[swap pop] "nip" :def
+
+-- ( a b tuck -> b a b )
+[swap over] "tuck" :def
+
+-- ( a b c rollup -> c a b )
+[swap [swap] dip] "rollup" :def
+
+-- ( a b c rolldown -> b c a )
+[[swap] dip swap] "rolldown" :def
+
+-- ( a b c rotate -> c b a )
+[swap [swap] dip swap] "rotate" :def
+
+-- ( a b ( a -> c ) dip -> c b )
+[swap pushr $] "dip" :def
+
+-- ( a b c ( a -> d ) dip2 -> d b c )
+[swap pushr swap pushr $ swap] "dip2" :def
+
+-- ( a b c d ( a -> e ) dip3 -> e b c d )
+[swap pushr swap pushr swap pushr $ rotate] "dip3" :def
+
+-- ( a b dup2 -> a b a b )
+[[dup] dip dup [swap] dip] "dup2" :def
+
+-- ( a b pop2 -> )
+[pop pop] "pop2" :def
+
+-- lists
+
+-- ( (A) (a -> b) map -> (B) )
+[[] rollup [pushr] . foldl] "map" :def
+
+-- ( (A) (a -> Boolean) filter -> (A') )
+[[] rollup [dup] swap . [[pushr] [pop] ifte] . foldl] "filter" :def
+
+-- ( (A) null? -> Boolean )
+[dupnull? nip] "null?" :def
+
+-- ( A [] popnull -> A )
+[dupnull? assert pop] "popnull" :def
+
+-- ( [A a] [B] movr -> [A] [B a] )
+[[popr] dip swap pushr] "movr" :def
+
+-- ( [A] [B b] movl -> [A b] [B] )
+[popr swap [pushr] dip] "movl" :def
+
+-- ( [a repeat] popr -> [a repeat] a )
+[dup [repeat] dip] "repeat" :def
+
+-- ( [A] cycle -> [A] cycle A )
+[dup [cycle] dip $] "cycle" :def
+
+-- ( a (a -> a) iterate -> a (a -> a) iterate a )
+[over [dup [$] dip iterate] dip] "iterate" :def
+
+-- ( [a .. b] reverse -> [b .. a] )
+[dupnull? [pop] [movl reverse'] ifte] "reverse'" :def
+[[] swap reverse'] "reverse" :def
+
+-- ( [a A] popl -> a [A] )
+[reverse popr swap reverse] "popl" :def
+
+-- ( a [A] pushl -> [a A] )
+[[[] swap pushr] dip .] "pushl" :def
+
+-- ( a [B] (a b -> a) foldl -> a )
+[[popr] dip dup [foldl] pushl dip2 $] "foldl" :def
+[pop popnull] "foldl" :def
+
+-- ( [A] (a a -> a) foldl1 -> a )
+[[popl] dip foldl] "foldl1" :def
+
+-- ( a [B] (a b -> a) foldr -> a )
+[over null? [pop2] [[popr swap] dip dup dip2 foldr] ifte] "foldr" :def
+
+-- ( [A] (a a -> a) foldr1 -> a )
+[[popr swap] dip foldr] "foldr1" :def
+
+-- get nth item from a stack
+-- ( [A] Int !! -> a )
+[dup 0 <= [pop popr swap pop] [1- [tail] dip !!] ifte] "!!" :def
+
+-- drop n stack items
+-- ( [A] Int drop -> [A] )
+[dup 0 <= [pop] [1 - swap dupnull? [nip] [tail swap drop] ifte] ifte] "drop" :def
+
+-- take n stack items
+-- ( [A] Int take -> [A] )
+[splitAt pop] "take" :def
+
+-- ( [A] Int splitAt -> [A] [A] )
+[[] rollup splitAt'] "splitAt" :def
+[dup 0 <= [pop] [1- over null? [pop] [[movl] dip splitAt'] ifte] ifte] "splitAt'" :def
+
+-- ( [A] (a -> Boolean) -> [A] [A] )
+[[] rollup span'] "span" :def
+[[popr dup] dip dup [$] dip swap [[swap [swap pushl] dip] dip span'] [pop pushr] ifte] "span'" :def
+[pop dupnull? assert] "span'" :def
+
+-- ( [A] (a -> Boolean) -> [A] )
+[span pop] "takeWhile" :def
+
+-- ( [A] (a -> Boolean) -> [A] )
+[span swap pop] "dropWhile" :def
+
+-- ( [A] (a -> Boolean) -> [A] [A] )
+[[not] . span] "break" :def
+
+-- ( a a enumFromTo -> [A] )
+[?over - 1+ swap [[1+] iterate] pushl swap take] "enumFromTo" :def
+
+-- ( [A] length -> Int )
+[0 length'] "length" :def
+[over null? [nip] [1+ [tail] dip length'] ifte] "length'" :def
+
+-- ( [A a] top -> [A a] a )
+[popr dup [pushr] dip seq] "top" :def
+
+-- ( [Boolean ..] and -> Boolean )
+[True swap [&&] foldl] "and" :def
+
+-- ( [Boolean ..] or -> Boolean )
+[False swap [||] foldl] "or" :def
+
+-- ( [A] (a -> Boolean) any -> Boolean )
+[map or] "any" :def
+
+-- ( [A] (a -> Boolean) all -> Boolean )
+[map and] "all" :def
+
+-- (a a +) => ( [A] sum -> a )
+[0 swap [+] foldl] "sum" :def
+
+-- (a a *) => ( [A] product -> a )
+[1 swap [*] foldl] "product" :def
+
+-- (a a .) => ( [A] concat -> a )
+[[] swap [.] foldl] "concat" :def
+
+-- (b b .) => ( [A] (a -> b) concatMap -> b )
+[map concat] "concatMap" :def
+
+-- (a a max) => ( [A] maximum -> a )
+[[max] foldl1] "maximum" :def
+
+-- (a a min) => ( [A] minimum -> a )
+[[min] foldl1] "minimum" :def
+
+-- ( [A] [B] [C] splice -> [B A C] )
+[[swap .] dip .] "splice" :def
+
+-- ( a singleton -> [a] )
+[[] swap pushr] "singleton" :def
+
+-- ( a [B] (a b -> a) scanl -> [A] )
+[[singleton] dip2 [[top] dip] swap . [pushr] . foldl] "scanl" :def
+
+-- ( [A] (a a -> a) scanl1 -> [A] )
+[[popl] dip scanl] "scanl1" :def
+
+-- ( a [B] (a b -> a) scanr -> [A] )
+[[singleton] dip2 [[top] dip] [pushr] splice foldr] "scanr" :def
+
+-- ( [A] (a a -> a) scanr1 -> [A] )
+[[popr swap] dip scanr] "scanr1" :def
+
+-- ( a Int replicate -> [A] )
+[[[repeat] pushl] dip take] "replicate" :def
+
+-- ( a b == -> Boolean )
+[eq?] "==" :def
+[[popr] dip swap [popr] dip ==] "headEq" :def
+[headEq [==] [pop2 False] ifte] "==" :def
+[popnull null?] "==" :def
+[swap popnull null?] "==" :def
+
+-- ( [A a] head -> a )
+[popr swap pop] "head" :def
+
+-- ( a just -> [ a Just ] )
+[[Just] pushl] "just" :def
+
+-- ( nothing -> [ Nothing ] )
+[[Nothing]] "nothing" :def
+
+-- ( ([a Just] \/ [Nothing]) ( a -> b ) b maybe -> b )
+[rotate popr
+    {pop pop : Nothing;
+     head [pop] dip2 swap $ : Just}
+  case seq] "maybe" :def
+
+[nothing maybe seq] ">>=" :def
+[just] "return" :def
+[nothing] "mzero" :def
+
+[[return] dip [>>=] foldl] "do" :def
+
+-- (x y ==), ( [a x] { .. ; b y ; .. } case -> a b )
+[popr popr over3 eq? [swap pop swap pop $] [pop case] ifte] "case" :def
+
+-- ( [A] a elem -> Boolean )
+[[popr] dip dup [==] dip swap [pop2 True seq] [elem] ifte] "elem" :def
+[pop null? False swap assert] "elem" :def
+
+-- ( [A] a notElem -> Boolean )
+[elem not] "notElem" :def
+
+-- ( a [[b a] ..] lookup -> ([b Just] \/ [Nothing]) )
+[popr popr over3 eq? [swap pop swap pop $ just] [pop lookup] ifte] "lookup" :def
+[null? swap pop nothing swap assert] "lookup" :def
+
+-- ( ([a Left] \/ [b Right]) (a -> c) (b -> c) either -> c
+[[Right] . swap [Left] . swap [] pushl pushl [popr [head] dip] dip case] "either" :def
+
+-- ( a left -> [a Left] )
+[[Left] pushl] "left" :def
+
+-- ( a right -> [a Right] )
+[[Right] pushl] "right" :def
+
+[right] "return" :def
+[swap [left swap pop] [swap $] either] ">>=" :def
+
+
+-- ( [A] [B] (a b -> c) zipWith -> [C] )
+[[[popr] dip popr [swap] dip] dip
+  rollup over2 $ [zipWith] dip pushr] "zipWith" :def
+[pop pop null? [] swap assert] "zipWith" :def
+[pop swap pop null? [] swap assert] "zipWith" :def
+
+-- ( [A] [B] zip -> [[a b] ..] )
+[[[] pushl pushl] zipWith] "zip" :def
+
+-- ( a b compare -> (LT \/ EQ \/ GT) )
+[dup2 < [pop2 LT seq] [> [GT] [EQ] ifte] ifte] "compare" :def
+
+-- ( [A a] tail -> [A] )
+[popr pop] "tail" :def
+
+-- ( [A] (a -> [B]) concatMap -> [B] )
+[map concat] "concatMap" :def
+
+-- ( Float )
+[3.141592653589793] "pi" :def
+
+-- ( [[a b] ..] unzip -> [A] [B] )
+[popr [unzip] dip popl head swap [pushr] dip swap [pushr] dip seq] "unzip" :def
+[null? [] [] rolldown assert] "unzip" :def
+
+-- ()
+[False assert] "no" :def
+
+-- ( A : -> A )
+[] ":" :def
+
+[swap >>=] "=<<" :def
+[[pop] swap pushr >>=] ">>" :def
+[[>>] foldl1 [] return >>] "sequence_" :def
+[[] return swap [[singleton] fmap composeM] foldl] "sequence" :def
+
+
+[swap popr {head swap $ [Just] pushl : Just;
+            pop2 [Nothing] seq : Nothing} case] "fmap" :def
+[swap popr {head swap $ [Right] pushl : Right;
+            [Left] . swap pop : Left} case] "fmap" :def
+
+[[State] pushl [pushl] pushl] "return" :def
+
+[[swap] [return] splice singleton
+  [swap] [>>=] splice [>>=] pushl pushl pushl head] "ap2" :def
+
+[[.] ap2] "composeM" :def
+
+--[[return] pushl [IO] pushl] "return" :def
+--[swap popr {head swap [>>=] pushl pushl [IO] pushl : IO} case] ">>=" :def
+
+--[[return] pushl singleton [[]] [IO] splice] "return" :def
+--[swap popr {popr [head swap . [>>=] .] dip [IO] pushl pushl : IO} case] ">>=" :def
+
