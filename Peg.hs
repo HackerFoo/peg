@@ -1,3 +1,19 @@
+{- Copyright 2012 Dustin DeWeese
+   This file is part of peg.
+
+    peg is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    peg is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with peg.  If not, see <http://www.gnu.org/licenses/>.
+-}
 {-# LANGUAGE CPP, PatternGuards #-}
 #ifdef MAIN
 module Main where
@@ -79,7 +95,7 @@ up :: Stack -> Peg ()
 up = lift . lift . Left
 
 -- | pop an argument from the stack, push onto argument stack
-getArg check = do
+getArg' check st = do
   force
   em <- emptyStack
   if em
@@ -88,10 +104,13 @@ getArg check = do
       x <- popStack
       if check x
         then return ()
-        else if x == W "["
+        else if st x
                then pushArg x >> done
                else mzero
       pushArg x
+
+getArg ch = getArg' ch ((== W "[") ||. (== W "]"))
+getArgNS ch = getArg' ch (== W "[")
 
 pushStack x = modify (\(PegState s a m xx) -> PegState (x:s) a m xx)
 appendStack x = modify (\(PegState s a m xx) -> PegState (x++s) a m xx)
@@ -131,34 +150,34 @@ traceStack = do
 wordMap = foldl' (flip (uncurry $ M.insertWith mplus)) M.empty
 
 op2i f = do
-  getArg isInt
-  getArg isInt
+  getArgNS isInt
+  getArgNS isInt
   I x <- popArg
   I y <- popArg
   pushStack $ I (x `f` y)
 
 op2f f = do
-  getArg isFloat
-  getArg isFloat
+  getArgNS isFloat
+  getArgNS isFloat
   F x <- popArg
   F y <- popArg
   pushStack $ F (x `f` y)
 
 op1f f = do
-  getArg isFloat
+  getArgNS isFloat
   F x <- popArg
   pushStack . F . f $ x
 
 reli f = do
-  getArg isInt
-  getArg isInt
+  getArgNS isInt
+  getArgNS isInt
   I x <- popArg
   I y <- popArg
   pushStack . W . show $ x `f` y
 
 relf f = do
-  getArg isFloat
-  getArg isFloat
+  getArgNS isFloat
+  getArgNS isFloat
   F x <- popArg
   F y <- popArg
   pushStack . W . show $ x `f` y
@@ -182,18 +201,18 @@ builtins = wordMap [
   ("+", op2i (+)),
   ("-", op2i (-)),
   ("*", op2i (*)),
-  ("div", do getArg (isInt &&. (/= (I 0)))
-             getArg isInt
+  ("div", do getArgNS (isInt &&. (/= (I 0)))
+             getArgNS isInt
              I x <- popArg
              I y <- popArg
              pushStack . I $ x `div` y),
-  ("^", do getArg (isInt &&. (\(I x) -> x >= 0))
-           getArg isInt
+  ("^", do getArgNS (isInt &&. (\(I x) -> x >= 0))
+           getArgNS isInt
            I x <- popArg
            I y <- popArg
            pushStack . I $ x ^ y),
-  ("^^", do getArg isInt
-            getArg isFloat
+  ("^^", do getArgNS isInt
+            getArgNS isFloat
             F x <- popArg
             I y <- popArg
             pushStack . F $ x ^^ y),
@@ -256,8 +275,10 @@ builtins = wordMap [
               x <- popArg
               case x of
                 -- reach across the fence
-                W "]" -> do getArg (anything ||. (== W "["))
+                W "]" -> do pushArg (W "]")
+                            getArg (anything ||. (== W "["))
                             x <- popArg
+                            popArg
                             guard $ x /= W "["
                             pushStack (W "]")
                             pushStack x
@@ -297,8 +318,8 @@ builtins = wordMap [
                               x <- peekStack
                               pushStack $ W "]"
                               pushStack . W . show $ x == W "["),
-  ("assert", getArg (== W "True") >> popArg >> force),
-  ("deny", getArg (== W "False") >> popArg >> force),
+  ("assert", getArgNS (== W "True") >> popArg >> force),
+  ("deny", getArgNS (== W "False") >> popArg >> force),
   ("\\/", do getArg anything
              getArg anything
              x <- popArg
@@ -462,7 +483,7 @@ evalLoop n s m = do
       Left e -> outputStrLn (show e) >> evalLoop n s m
       Right x -> case x of
         Left s' -> evalLoop False s' m
-        Right [] -> outputStrLn "No" >> evalLoop n s m
+        Right [] -> evalLoop n [W "no"] m
         Right ((s',m'):r) -> do
           mapM_ (outputStrLn . showStack . fst) r
           evalLoop True s' m'
