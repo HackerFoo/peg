@@ -33,7 +33,7 @@ Maintainer:          dustin.deweese@gmail.com
 -- A copyright notice.
 -- Copyright:           
 
-Category:            Language
+Category:            Compilers/Interpreters
 
 Build-type:          Simple
 
