@@ -49,25 +49,41 @@ The format below is:
 --------------------------------
 
 `x` `pop` --> 
+
 `x` `y` `swap` --> `y` `x`
+
 `x` `dup` --> `x` `x`
+
 `[` `xn` .. `x0` `]` --> `[xn .. x0]` -- gathers stack items into a list until `[` if possible
+
 `[ .. ]` `x` `pushr` --> `[ .. x]`
+
 `[ .. x]` `popr` --> `[ .. ]` `x` -- forces evaluation of `x`
+
 `[ .. x]` `[y ..]` `.` --> `[ .. x y .. ]` -- concatenates stacks without evaluating anything
+
 `[ .. ]` `dupnull?` --> `[ .. ]` (`True` \/ `False`) -- indicates if the stack is empty, works on partial stacks
+
 `True` `assert` --> -- only resolves if the argument is `True`
+
 `False` `deny` --> -- opposite of assert
+
 `x` `y` `\/` --> 'x' \/ 'y' -- continues execution non-deterministically with `x` and `y`
 
 `int?`, `float?`, `word?`, `list?`, `char?`, `string?` -- test type of argument, returning `True` or `False`
  
 `x` `y` `eq?` --> `True` \/ `False` -- is `x` a primitive type (non-stack) equal to `y` (also not a stack)
+
 `[ .. ]` `"word-name"` `:def` --> -- define the word `word-name` to be equivalent to the stack argument
+
 `"word-name"` `:undef` --> -- undefine the word `word-name`
+
 `[ .. ]` `$` --> ` .. ` -- append stack argument to upper level stack and execute
+
 `x` `y` `seq` --> `x` `y` -- force evaluation of `x`
+
 `x` `show` --> `"x"` -- convert `x` into string representation
+
 `"x"` `read` --> `x` -- convert string representation of `x` into `x`, opposite of `show`
 
 `+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=` -- numeric and comparison words defined as in Haskell Prelude
