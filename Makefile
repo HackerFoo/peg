@@ -4,4 +4,4 @@ peg: Peg.hs
 .PHONY: clean
 
 clean:
-	rm -f *.o peg *.hi
+	rm -f *.o peg *.hi; rm -rf dist
