@@ -9,10 +9,10 @@ Name:                peg
 Version:             0.1
 
 -- A short (one-line) description of the package.
-Synopsis:            Peg is a lazy non-deterministic concatenative programming language.
+Synopsis:            a lazy non-deterministic concatenative programming language
 
 -- A longer description of the package.
--- Description:         
+Description:         Peg is a lazy non-deterministic concatenative programming language inspired by Haskell, Joy, and Prolog.
 
 -- URL for the project homepage or repository.
 Homepage:            http://github.com/HackerFoo/peg
@@ -42,7 +42,7 @@ Build-type:          Simple
 Extra-source-files: README.md, lib.peg, types.peg
 
 -- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+Cabal-version:       >=1.4
 
 Executable peg
   cpp-options: -DMAIN
@@ -51,7 +51,7 @@ Executable peg
   Main-is: Peg.hs
   
   -- Packages needed in order to build this package.
-  Build-depends: base, logict, containers, mtl, filepath, haskeline, parsec
+  Build-depends: base < 5, logict, containers, mtl, filepath, haskeline, parsec
   
   -- Modules not exported by this package.
   -- Other-modules:       
