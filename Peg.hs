@@ -182,6 +182,13 @@ relf f = do
   F y <- popArg
   pushStack . W . show $ x `f` y
 
+relc f = do
+  getArgNS isChar
+  getArgNS isChar
+  C x <- popArg
+  C y <- popArg
+  pushStack . W . show $ x `f` y
+
 is_type :: (Value -> Bool) -> Peg ()
 is_type f = do
   getArg anything
@@ -245,6 +252,10 @@ builtins = wordMap [
   ("<=", relf (<=)),
   (">", relf (>)),
   (">=", relf (>=)),
+  ("<", relc (<)),
+  ("<=", relc (<=)),
+  (">", relc (>)),
+  (">=", relc (>=)),
   ("pop", getArg anything >> popArg >> force),
   ("swap", do getArg anything
               getArg anything

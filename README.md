@@ -1,5 +1,8 @@
-Peg
-===
+Peg Programming Language
+========================
+
+Overview
+--------
 
 Peg is a lazy non-deterministic concatenative programming language.
 
@@ -11,9 +14,15 @@ For example, even though the word 'no' can never be resolved:
 
 This is because `+` requires only two arguments on the stack.
 
-Branching is acomplished with the choice operator `\/`. Both paths are followed non-deterministically.  Paths are terminated when a word cannot be resolved.
+Branching is accomplished with the choice operator `\/`. Both paths are followed non-deterministically.  Paths are terminated when a word cannot be resolved.
 
-A word can only be resolved if the word can operate on its arguments.  The builtin words `assert` and `deny` can only be resolved on the arguments `True` and `False` respectively.  `ifte` is provided as part of the library.
+Multiple definitions for a word cause the definitions to be substituted non-deterministically.  This allows words (even built-in words) to be extended for new types.
+
+For example, to extend `sqrt` to operate on the word `Four`:
+
+    [Four eq? Two swap assert] "sqrt" :def
+
+A word can only be resolved if the word can operate on its arguments.  The built-in words `assert` and `deny` can only be resolved on the arguments `True` and `False` respectively.  `ifte` is provided as part of the library.
 
     [ 1 ] 2 \/ popr --> [ ] 1
 
@@ -21,7 +30,7 @@ The basic types are integers, floats, characters, words, and stacks.  As with th
 
     [1 2 3 +] popr --> [1] 5
 
-Peg is flat, in that any expression can be divided on whitespace (except inside a literal), the pieces evaluated independently, and when the results are concatenated, evaluate to an equivalent expression to the original expression.
+Peg is flat, in that any expression can be divided on white space (except inside a literal), the pieces evaluated independently, and when the results are concatenated, evaluate to an equivalent expression to the original expression.
 
 Example:
 
@@ -29,3 +38,45 @@ Example:
     [ 1 2 +        --> [ 3
     ] popr         --> ] popr
     [ 3 ] popr     --> [ ] 3
+
+Built-in words
+--------------
+
+The format below is:
+
+`input stack` `word` --> `output stack` \/ `alternate output stack` -- notes
+
+--------------------------------
+
+`x` `pop` --> 
+`x` `y` `swap` --> `y` `x`
+`x` `dup` --> `x` `x`
+`[` `xn` .. `x0` `]` --> `[xn .. x0]` -- gathers stack items into a list until `[` if possible
+`[ .. ]` `x` `pushr` --> `[ .. x]`
+`[ .. x]` `popr` --> `[ .. ]` `x` -- forces evaluation of `x`
+`[ .. x]` `[y ..]` `.` --> `[ .. x y .. ]` -- concatenates stacks without evaluating anything
+`[ .. ]` `dupnull?` --> `[ .. ]` (`True` \/ `False`) -- indicates if the stack is empty, works on partial stacks
+`True` `assert` --> -- only resolves if the argument is `True`
+`False` `deny` --> -- opposite of assert
+`x` `y` `\/` --> 'x' \/ 'y' -- continues execution non-deterministically with `x` and `y`
+
+`int?`, `float?`, `word?`, `list?`, `char?`, `string?` -- test type of argument, returning `True` or `False`
+ 
+`x` `y` `eq?` --> `True` \/ `False` -- is `x` a primitive type (non-stack) equal to `y` (also not a stack)
+`[ .. ]` `"word-name"` `:def` --> -- define the word `word-name` to be equivalent to the stack argument
+`"word-name"` `:undef` --> -- undefine the word `word-name`
+`[ .. ]` `$` --> ` .. ` -- append stack argument to upper level stack and execute
+`x` `y` `seq` --> `x` `y` -- force evaluation of `x`
+`x` `show` --> `"x"` -- convert `x` into string representation
+`"x"` `read` --> `x` -- convert string representation of `x` into `x`, opposite of `show`
+
+`+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=` -- numeric and comparison words defined as in Haskell Prelude
+
+Library: lib.peg
+----------------
+
+Most words are based on the Haskell Prelude, some stack combinators are taken from Joy.
+
+`foldr` and `foldl` are swapped from the Haskell definitions, because "lists" are stacks, and elements are added to the right side of a stack.  Similarly for `scanr` and `scanl`.
+
+Most of the Haskell Prelude is implemented, except words that aren't very useful or are replaced by a built-in word.  I'm still working on IO.
