@@ -4,11 +4,11 @@ Peg Programming Language
 Overview
 --------
 
-Peg is a lazy non-deterministic concatenative programming language.
+Peg is a lazy non-deterministic concatenative programming language inspired by Haskell, Joy, and Prolog.
 
 In contrast to most concatenative programming languages, Peg starts evaluation from the right, evaluating arguments to the left as needed.
 
-For example, even though the word 'no' can never be resolved:
+For example, even though the word `no` can never be resolved:
 
     no 1 2 + --> no 3
 
@@ -106,4 +106,4 @@ Just call the `peg` executable with source files to be loaded (such as lib.peg) 
 
 The interpreter evaluates the input after pressing `Enter`.  The results will be printed after the next prompt, allowing you to edit the results.  If the cursor is not on the right, a word did not have enough arguments to be evaluated; the cursor will be placed so that you can provide the missing arguments.  If there are multiple results, up to 8 results will be printed, but only the first will appear at the prompt.  If there are no results, the result `no` is shown, which is equivalent (defined in `lib.peg`).
 
-Haskeline provides the editing interface.  Clearing the input and pressing `Enter` will exit the interpreter.
+[Haskeline](http://hackage.haskell.org/package/haskeline) provides the line editing interface.  Clearing the input and pressing `Enter` will exit the interpreter.
