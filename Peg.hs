@@ -198,11 +198,16 @@ anything (W "]") = False
 anything (W "[") = False
 anything _ = True
 
-brac (W "]") = True
-brac _ = False
-
 (f ||. g) x = f x || g x
 (f &&. g) x = f x && g x
+
+unpackList = do
+  getArg (isList ||. (== W "]"))
+  x <- popArg
+  case x of
+    W "]" -> return ()
+    L l -> do pushStack $ W "["
+              appendStack l
 
 builtins = wordMap [
   ("+", op2i (+)),
@@ -274,7 +279,7 @@ builtins = wordMap [
                put $ PegState s' a w xx
                pushStack . L . reverse $ l),
   ("pushr", do getArg anything
-               getArg (isList ||. brac)
+               getArg (isList ||. (== W "]"))
                x <- popArg
                case x of
                  -- toss it over the fence
@@ -282,53 +287,32 @@ builtins = wordMap [
                              pushStack (W "]")
                  L l -> do x <- popArg
                            pushStack $ L (x:l)),
-  ("popr", do getArg (isList ||. brac)
+  ("popr", do unpackList
+              -- reach across the fence
+              pushArg $ W "]"
+              getArg (anything ||. (== W "["))
               x <- popArg
-              case x of
-                -- reach across the fence
-                W "]" -> do pushArg (W "]")
-                            getArg (anything ||. (== W "["))
-                            x <- popArg
-                            popArg
-                            guard $ x /= W "["
-                            pushStack (W "]")
-                            pushStack x
-                -- unpack the list and force it
-                L l -> do pushStack $ W "["
-                          pushArg $ W "]"
-                          appendStack l
-                          getArg (anything ||. (== W "["))
-                          x <- popArg
-                          guard $ x /= W "["
-                          popArg >>= pushStack
-                          pushStack x
-                _ -> mzero),
+              guard $ x /= W "["
+              popArg >>= pushStack
+              pushStack x),
+  ("dupnull?", do unpackList
+                  -- take a peek across the fence
+                  pushArg $ W "]"
+                  getArg (anything ||. (== W "["))
+                  x <- popArg
+                  pushStack x
+                  popArg >>= pushStack
+                  pushStack . W . show $ x == W "["),
   (".", do getArg isList
-           getArg (isList ||. brac)
+           getArg (isList ||. (== W "]"))
            x <- popArg
            case x of
              -- remove the fence
              W "]" -> do L l <- popArg
-                         pushArg $ W "]"
                          appendStack l
-                         popArg >>= pushStack
+                         pushStack $ W "]"
              L x -> do L y <- popArg
                        pushStack . L $ y ++ x),
-  ("dupnull?", do getArg (isList ||. brac)
-                  x <- popArg
-                  case x of
-                    -- take a peek across the fence
-                    W "]" -> do pushArg $ W "]"
-                                force
-                                y <- peekStack
-                                popArg >>= pushStack
-                                pushStack . W . show $ y == W "["
-                    L l -> do pushStack $ W "["
-                              appendStack l
-                              force
-                              x <- peekStack
-                              pushStack $ W "]"
-                              pushStack . W . show $ x == W "["),
   ("assert", getArgNS (== W "True") >> popArg >> force),
   ("deny", getArgNS (== W "False") >> popArg >> force),
   ("\\/", do getArg anything
@@ -401,10 +385,6 @@ bind n l = modify $ \(PegState s a w xx) -> PegState s a (M.insertWith interleav
                  pushArg w
 
 unbind n = modify $ \(PegState s a w xx) -> PegState s a (M.delete n w) xx
-
-peekStack = do
-  (x:_) <- psStack <$> get
-  return x
 
 gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
 gatherList n l (w@(W "[") : s)
@@ -501,9 +481,9 @@ ifNotNull f x = f x
 evalLoop :: Either (Stack, Stack) Stack -> Map String (Peg ()) -> InputT IO ()
 evalLoop p m = do
   let text = case p of
-               --Left (s, W "[" : a) -> (showStack (W "[" : s), ' ' : showStack (reverse a))
                Left (s, a) -> (showStack s, ' ' : showStack (reverse a))
-               Right s -> (showStack s, "")
+               Right [] -> ("", "")
+               Right s -> (showStack s ++ " ", "")
   minput <- getInputLineWithInitial ": " text
   case minput of
     Nothing -> return ()

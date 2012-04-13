@@ -14,6 +14,12 @@ For example, even though the word `no` can never be resolved:
 
 This is because `+` requires only two arguments on the stack.
 
+Another demonstration of laziness:
+
+    0 [1+] iterate
+
+This creates the infinite stack `.. 3 2 1 0`.  Try `pop`ing a few times to see how it works.
+
 Branching is accomplished with the choice operator `\/`. Both paths are followed non-deterministically.  Paths are terminated when a word cannot be resolved.
 
 Multiple definitions for a word cause the definitions to be substituted non-deterministically.  This allows words (even built-in words) to be extended for new types.
@@ -88,6 +94,12 @@ The format below is:
 
 `+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=`, `realToFrac`, `round`, `floor`, `ceiling` -- numeric and comparison words defined as in Haskell Prelude
 
+Peg supports a curly bracket notation to allow for case statements and do-notation.  Curly braces trivially reduce to a nested stack.
+
+`{` --> `[` `[`
+`;` --> `]` `[`
+`}` --> `]` `]`
+
 Library: lib.peg
 ----------------
 
@@ -107,3 +119,28 @@ Just call the `peg` executable with source files to be loaded (such as lib.peg) 
 The interpreter evaluates the input after pressing `Enter`.  The results will be printed after the next prompt, allowing you to edit the results.  If the cursor is not on the right, a word did not have enough arguments to be evaluated; the cursor will be placed so that you can provide the missing arguments.  If there are multiple results, up to 8 results will be printed, but only the first will appear at the prompt.  If there are no results, the result `no` is shown, which is equivalent (defined in `lib.peg`).
 
 [Haskeline](http://hackage.haskell.org/package/haskeline) provides the line editing interface.  Clearing the input and pressing `Enter` will exit the interpreter.
+
+Future
+------
+
+### I/O
+
+I have been modeling I/O after Haskell's monad approach, but monads seem to be better suited to applicative languages, despite being possible in a concatenative language.  Running computations in a sub-stack may provide a better abstraction for Peg.
+
+### Type System
+
+The current idea is to use explicit type checks (such as `int?`) instead of introducing a different syntax for type annotations.  This would allow the type system to be extended using the base language, and support dependent typing.  It would also allow optional run time typing.
+
+The interpreter is currently dynamically typed, but I would like to make the compiler support static type checking, by proving that the result of a computation cannot be `no`.  The compiler could also optimize away types and most non-determinism.  I do realize that, in general, static type checking will be undecidable.  The compiler will be designed to resolve undecidable types interactively with the user.
+
+The language would not change significantly.  Product types are built from stacks, such as `[1 2 Ratio]`, and sum types are created using `\/`, such as `[1 Left] \/ ['a' Right]`, using undefined words at the top of the stack as tags.  Constructors can be created as the matching lowercase word, such as `x left --> [x Left]`.  Using the same word as the tag results in an infinitely nested stack, so the values can never be retrieved.
+
+I have done some work on types in `types.peg`, which extends some words to operate on type tags.
+
+### Modules
+
+I will need to add a module system to allow encapsulation.
+
+### Compiler
+
+The compiler will first target C, to allow easy portability.  I am interesting in running Peg code in embedded systems, especially because it is difficult to use other high-level languages such as Haskell on most microcontrollers.
