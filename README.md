@@ -39,7 +39,7 @@ Example:
     ] popr         --> ] popr
     [ 3 ] popr     --> [ ] 3
 
-Built-in words
+Built-in Words
 --------------
 
 The format below is:
@@ -86,7 +86,7 @@ The format below is:
 
 `"x"` `read` --> `x` -- convert string representation of `x` into `x`, opposite of `show`
 
-`+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=` -- numeric and comparison words defined as in Haskell Prelude
+`+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=`, `realToFrac`, `round`, `floor`, `ceiling` -- numeric and comparison words defined as in Haskell Prelude
 
 Library: lib.peg
 ----------------
@@ -96,3 +96,14 @@ Most words are based on the Haskell Prelude, some stack combinators are taken fr
 `foldr` and `foldl` are swapped from the Haskell definitions, because "lists" are stacks, and elements are added to the right side of a stack.  Similarly for `scanr` and `scanl`.
 
 Most of the Haskell Prelude is implemented, except words that aren't very useful or are replaced by a built-in word.  I'm still working on IO.
+
+Running the Peg Interpreter
+---------------------------
+
+Build the interpreter using Cabal (cabal configure; cabal build)
+
+Just call the `peg` executable with source files to be loaded (such as lib.peg) as arguments.
+
+The interpreter evaluates the input after pressing `Enter`.  The results will be printed after the next prompt, allowing you to edit the results.  If the cursor is not on the right, a word did not have enough arguments to be evaluated; the cursor will be placed so that you can provide the missing arguments.  If there are multiple results, up to 8 results will be printed, but only the first will appear at the prompt.  If there are no results, the result `no` is shown, which is equivalent (defined in `lib.peg`).
+
+Haskeline provides the editing interface.  Clearing the input and pressing `Enter` will exit the interpreter.

@@ -60,7 +60,7 @@ data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Map String (Peg ()),
                            psAvoid :: Set Stack }
-type Peg = StateT PegState (LogicT (Either Stack))
+type Peg = StateT PegState (LogicT (Either (Stack, Stack)))
 data Rule = Rule { getRule :: Stack -> Peg Stack }
 data Value = F Double | I Integer | C Char | L Stack | W String deriving (Show, Eq, Ord)
 
@@ -91,7 +91,7 @@ toString _ = mzero
 
 isString = isJust . toString
 
-up :: Stack -> Peg ()
+up :: (Stack, Stack) -> Peg ()
 up = lift . lift . Left
 
 -- | pop an argument from the stack, push onto argument stack
@@ -105,7 +105,7 @@ getArg' check st = do
       if check x
         then return ()
         else if st x
-               then pushArg x >> done
+               then pushStack x >> done
                else mzero
       pushArg x
 
@@ -123,7 +123,7 @@ emptyStack = null . psStack <$> get
 -- | can't go any further, bail
 done = do
   st <- get
-  up $ reverse (psArgStack st) ++ psStack st
+  up (psStack st, psArgStack st)
 
 pushArg x = modify (\(PegState s a m xx) -> PegState s (x:a) m xx)
 popArg = do PegState s (x:a) m xx <- get
@@ -358,8 +358,10 @@ builtins = wordMap [
                 unbind s),
   ("$", do getArg isList
            L l <- popArg
+           w <- popArg -- temporarily remove $ from the arg stack
            appendStack l
-           force),
+           force
+           pushArg w),
   ("seq", do getArg anything
              force
              pushStack =<< popArg),
@@ -370,7 +372,21 @@ builtins = wordMap [
               Just s <- toString <$> popArg
               let Right x = parseStack s
               appendStack x
-              force)]
+              force),
+  ("realToFrac", do getArg (isInt ||. isFloat)
+                    a <- popArg
+                    case a of
+                      I x -> pushStack . F . realToFrac $ x
+                      F x -> pushStack a),
+  ("round", opfi round),
+  ("floor", opfi floor),
+  ("ceiling", opfi ceiling)]
+
+opfi f = do
+  getArg isFloat
+  F x <- popArg
+  pushStack . I . f $ x
+
 {-
 runIO (L [W "IO", L (W op : args), L k] : s) =
   case (op, args) of
@@ -449,7 +465,7 @@ evalStack' fs m src = do
     PegState s _ m _ <- execStateT force $ PegState s [] m S.empty
     return (s, m)
 
-evalStack fs m = fmap (either (\s -> [(s, m)]) id) . evalStack' fs m
+evalStack fs m = fmap (either (\(s, a) -> [(reverse a ++ s, m)]) id) . evalStack' fs m
 
 hGetLines h = do
   e <- hIsEOF h
@@ -467,7 +483,7 @@ main = do
           case load [] m l of
             Left e -> print e >> return m
             Right m' -> return m') builtins files
-  runInputT defaultSettings (evalLoop True [] m)
+  runInputT defaultSettings $ evalLoop (Right []) m
 
 load :: Stack
   -> Map String (Peg ())
@@ -482,19 +498,21 @@ load s m (input:r) =
 ifNotNull f [] = []
 ifNotNull f x = f x
 
-evalLoop :: Bool -> Stack -> Map String (Peg ()) -> InputT IO ()
-evalLoop n s m = do
-  minput <- getInputLineWithInitial ": " .
-              (if n then (flip (,) "" . ifNotNull (++" "))
-                    else ((,) "") . (" "++)) $ showStack s
+evalLoop :: Either (Stack, Stack) Stack -> Map String (Peg ()) -> InputT IO ()
+evalLoop p m = do
+  let text = case p of
+               --Left (s, W "[" : a) -> (showStack (W "[" : s), ' ' : showStack (reverse a))
+               Left (s, a) -> (showStack s, ' ' : showStack (reverse a))
+               Right s -> (showStack s, "")
+  minput <- getInputLineWithInitial ": " text
   case minput of
     Nothing -> return ()
     Just "" -> return ()
     Just input -> case evalStack' id m input of
-      Left e -> outputStrLn (show e) >> evalLoop n s m
+      Left e -> outputStrLn (show e) >> evalLoop p m
       Right x -> case x of
-        Left s' -> evalLoop False s' m
-        Right [] -> evalLoop n [W "no"] m
+        Left s' -> evalLoop (Left s') m
+        Right [] -> evalLoop (Right [W "no"]) m
         Right ((s',m'):r) -> do
           mapM_ (outputStrLn . showStack . fst) r
-          evalLoop True s' m'
+          evalLoop (Right s') m'

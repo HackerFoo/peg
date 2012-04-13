@@ -192,7 +192,7 @@
 [[not] . span] "break" :def
 
 -- ( a a enumFromTo -> [A] )
-[?over - 1+ swap [[1+] iterate] pushl swap take] "enumFromTo" :def
+[over - 1+ swap [[1+] iterate] pushl swap take] "enumFromTo" :def
 
 -- ( [A] length -> Int )
 [0 length'] "length" :def
