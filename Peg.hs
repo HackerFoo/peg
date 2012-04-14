@@ -56,7 +56,7 @@ type Peg = StateT PegState (LogicT IO)
 data PegException = PegException Stack Stack deriving (Show, Typeable)
 instance Exception PegException
 data Rule = Rule { getRule :: Stack -> Peg Stack }
-data Value = F Double | I Integer | C Char | L Stack | W String | Io Int deriving (Show, Eq, Ord)
+data Value = F Double | I Integer | C Char | L Stack | W String | Io deriving (Show, Eq, Ord)
 
 isWord (W _) = True
 isWord _ = False
@@ -85,7 +85,7 @@ toString _ = mzero
 
 isString = isJust . toString
 
-isIo (Io _) = True
+isIo Io = True
 isIo _ = False
 
 -------------------- Debug --------------------
@@ -466,7 +466,7 @@ showStack s = drop 1 $ loop s []
         loop (C x : s) = loop s . (' ':) . shows x
         loop (F x : s) = loop s . (' ':) . shows x
         loop (W x : s) = loop s . ((' ':x) ++)
-        loop (Io n : s) = loop s . (" IO#" ++)
+        loop (Io : s) = loop s . (" IO" ++)
         loop (L [] : s) = loop s . (" [ ]" ++)
         loop (L x : s) = case toString (L x) of
                            Just str -> loop s . (' ':) . shows str
@@ -510,14 +510,14 @@ load s m (input:r) =
 
 -- I/O ideas
 -- I/O token: dup I/O --> spawn thread, pop I/O --> kill thread
--- x0 x1 x2      IO# x3 x4  IO# x5
+-- x0 x1 x2      IO x3 x4  IO x5
 -- | main thread | thread 0 | thread 1 ...
--- .. IO# [ x ] dip
+-- .. IO [ x ] dip
 --   <------|
 -- send to thread n-1
 
 makeIOReal = map f
-  where f (W "IO#") = Io 0
+  where f (W "IO") = Io
         f x = x
 
 evalLoop :: Either (Stack, Stack) Stack -> Map String (Peg ()) -> InputT IO ()

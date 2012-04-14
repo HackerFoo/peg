@@ -45,9 +45,9 @@ Example:
     ] popr         --> ] popr
     [ 3 ] popr     --> [ ] 3
 
-Instead of using a monad to implement pure functional I/O, Peg simply uses a token representing the state of the world, `IO#`.  Words that perform I/O must require `IO#` as an argument.  If the word does not put it back, it will destroy the world.
+Instead of using a monad to implement pure functional I/O, Peg simply uses a token representing the state of the world, `IO`.  Words that perform I/O must require `IO` as an argument.  If the word does not put it back, it will destroy the world.
 
-`IO#` can only be introduced from the top-level, by typing `IO#`.  In other places, such as definitions and `read`, `IO#` is parsed as a word with no special meaning.
+`IO` can only be introduced from the top-level, by typing `IO`.  In other places, such as definitions and `read`, `IO` is parsed as a word with no special meaning.
 
 Built-in Words
 --------------
@@ -98,7 +98,7 @@ The format below is:
 
 `+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=`, `realToFrac`, `round`, `floor`, `ceiling` -- numeric and comparison words defined as in Haskell Prelude
 
-`getChar`, `putChar`, `getLine`, `putStr`, `putStrLn` -- similar to Haskell Prelude.  Instead of running in IO monad, they require `IO#` as the first argument, putting it back after executing
+`getChar`, `putChar`, `getLine`, `putStr`, `putStrLn` -- similar to Haskell Prelude.  Instead of running in IO monad, they require `IO` as the first argument, putting it back after executing
 
 Peg supports a curly bracket notation to allow for case statements and do-notation.  Curly braces trivially reduce to a nested stack.
 
@@ -133,7 +133,7 @@ Future
 
 I have been modeling I/O after Haskell's monad approach, but monads seem to be better suited to applicative languages, despite being possible in a concatenative language.
 
-I have implemented a different way of performing I/O in a pure functional way, as described above (I/O words require the `IO#` token.)  This may allow more flexible use of I/O than a monad; threads could be spawned with `IO# dup` and ended with `IO# pop`.  Also, more complex operations may be possible, requiring multiple `IO#`s.
+I have implemented a different way of performing I/O in a pure functional way, as described above (I/O words require the `IO` token.)  This may allow more flexible use of I/O than a monad; threads could be spawned with `IO dup` and ended with `IO pop`.  Also, more complex operations may be possible, requiring multiple `IO`s.
 
 ### Type System
 

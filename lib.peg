@@ -362,3 +362,11 @@
 --[[return] pushl singleton [[]] [IO] splice] "return" :def
 --[swap popr {popr [head swap . [>>=] .] dip [IO] pushl pushl : IO} case] ">>=" :def
 
+
+-- I/O
+
+-- ( IO a print --> IO ) -- prints representation of a to stdout
+[show putStrLn] "print" :def
+
+-- ( IO readLn --> IO a ) -- parses input from stdin to a
+[getLine read] "readLn" :def
