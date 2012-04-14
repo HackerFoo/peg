@@ -14,7 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with peg.  If not, see <http://www.gnu.org/licenses/>.
 -}
-{-# LANGUAGE CPP, PatternGuards #-}
+{-# LANGUAGE CPP, PatternGuards, DeriveDataTypeable, ScopedTypeVariables #-}
 #ifdef MAIN
 module Main where
 #else
@@ -31,7 +31,7 @@ import qualified Text.Parsec.Token as P
 import Text.Parsec.Language (haskellDef)
 import Data.List
 import Data.Ord
-import System.Console.Haskeline
+import System.Console.Haskeline hiding (throwIO, handle)
 import System.Environment
 import System.FilePath
 import System.IO
@@ -42,27 +42,21 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
+import Control.Exception hiding (try)
+import Data.Typeable
 
-lexer = P.makeTokenParser haskellDef
-
-integer = P.integer lexer
-float = P.float lexer
-naturalOrFloat = P.naturalOrFloat lexer
-natural = P.natural lexer
-whiteSpace = P.whiteSpace lexer
-charLiteral = P.charLiteral lexer
-stringLiteral = P.stringLiteral lexer
-
-probe s x = trace (s ++ show x) x
+-------------------- Data Types --------------------
 
 type Stack = [Value]
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Map String (Peg ()),
                            psAvoid :: Set Stack }
-type Peg = StateT PegState (LogicT (Either (Stack, Stack)))
+type Peg = StateT PegState (LogicT IO)
+data PegException = PegException Stack Stack deriving (Show, Typeable)
+instance Exception PegException
 data Rule = Rule { getRule :: Stack -> Peg Stack }
-data Value = F Double | I Integer | C Char | L Stack | W String deriving (Show, Eq, Ord)
+data Value = F Double | I Integer | C Char | L Stack | W String | Io Int deriving (Show, Eq, Ord)
 
 isWord (W _) = True
 isWord _ = False
@@ -91,8 +85,19 @@ toString _ = mzero
 
 isString = isJust . toString
 
-up :: (Stack, Stack) -> Peg ()
-up = lift . lift . Left
+isIo (Io _) = True
+isIo _ = False
+
+-------------------- Debug --------------------
+
+probe s x = trace (s ++ show x) x
+
+traceStack :: Peg ()
+traceStack = do
+  s <- psStack <$> get
+  trace (showStack s) $ return ()
+
+-------------------- Peg Monad Operations --------------------
 
 -- | pop an argument from the stack, push onto argument stack
 getArg' check st = do
@@ -114,6 +119,7 @@ getArgNS ch = getArg' ch (== W "[")
 
 pushStack x = modify (\(PegState s a m xx) -> PegState (x:s) a m xx)
 appendStack x = modify (\(PegState s a m xx) -> PegState (x++s) a m xx)
+
 popStack :: Peg Value
 popStack = do PegState (x:s) a m xx <- get
               put $ PegState s a m xx
@@ -123,7 +129,7 @@ emptyStack = null . psStack <$> get
 -- | can't go any further, bail
 done = do
   st <- get
-  up (psStack st, psArgStack st)
+  liftIO . throwIO $ PegException (psStack st) (psArgStack st)
 
 pushArg x = modify (\(PegState s a m xx) -> PegState s (x:a) m xx)
 popArg = do PegState s (x:a) m xx <- get
@@ -142,12 +148,7 @@ force = do
     (W w : _) -> popStack >> doWord w -- >> traceStack
     _ -> return ()
 
-traceStack :: Peg ()
-traceStack = do
-  s <- psStack <$> get
-  trace (showStack s) $ return ()
-
-wordMap = foldl' (flip (uncurry $ M.insertWith mplus)) M.empty
+-------------------- Converters --------------------
 
 op2i f = do
   getArgNS isInt
@@ -167,6 +168,11 @@ op1f f = do
   getArgNS isFloat
   F x <- popArg
   pushStack . F . f $ x
+
+opfi f = do
+  getArg isFloat
+  F x <- popArg
+  pushStack . I . f $ x
 
 reli f = do
   getArgNS isInt
@@ -194,12 +200,14 @@ is_type f = do
   getArg anything
   pushStack . W . show . f =<< popArg
 
-anything (W "]") = False
-anything (W "[") = False
-anything _ = True
+-------------------- Helpers for builtins --------------------
 
 (f ||. g) x = f x || g x
 (f &&. g) x = f x && g x
+
+anything (W "]") = False
+anything (W "[") = False
+anything _ = True
 
 unpackList = do
   getArg (isList ||. (== W "]"))
@@ -208,6 +216,25 @@ unpackList = do
     W "]" -> return ()
     L l -> do pushStack $ W "["
               appendStack l
+
+bind n l = modify $ \(PegState s a w xx) -> PegState s a (M.insertWith interleave n (f l) w) xx
+  where f l = do force
+                 w <- popArg
+                 force >> appendStack l >> force
+                 pushArg w
+
+unbind n = modify $ \(PegState s a w xx) -> PegState s a (M.delete n w) xx
+
+gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
+gatherList n l (w@(W "[") : s)
+  | n <= 0 = Right (l,s)
+  | otherwise = gatherList (n-1) (w:l) s
+gatherList n l (w:s) = gatherList n (w:l) s
+gatherList n l [] = Left l
+
+wordMap = foldl' (flip (uncurry $ M.insertWith mplus)) M.empty
+
+-------------------- Built-ins --------------------
 
 builtins = wordMap [
   ("+", op2i (+)),
@@ -326,6 +353,7 @@ builtins = wordMap [
   ("list?", is_type isList),
   ("char?", is_type isChar),
   ("string?", is_type isString),
+  ("io?", is_type isIo),
   ("eq?", do getArg anything
              getArg anything
              x <- popArg
@@ -364,35 +392,43 @@ builtins = wordMap [
                       F x -> pushStack a),
   ("round", opfi round),
   ("floor", opfi floor),
-  ("ceiling", opfi ceiling)]
+  ("ceiling", opfi ceiling),
+  ("getChar", do getArg isIo
+                 pushStack =<< popArg
+                 liftIO getChar >>= pushStack . C),
+  ("putChar", do getArg isChar
+                 getArg isIo
+                 io <- popArg
+                 C c <- popArg
+                 liftIO $ putChar c
+                 pushStack io),
+  ("getLine", do getArg isIo
+                 pushStack =<< popArg
+                 liftIO getLine >>= pushStack . L . map C),
+  ("putStr", do getArg isString
+                getArg isIo
+                io <- popArg
+                Just s <- toString <$> popArg
+                liftIO $ putStr s
+                pushStack io),
+  ("putStrLn", do getArg isString
+                  getArg isIo
+                  io <- popArg
+                  Just s <- toString <$> popArg
+                  liftIO $ putStrLn s
+                  pushStack io)]
 
-opfi f = do
-  getArg isFloat
-  F x <- popArg
-  pushStack . I . f $ x
+-------------------- Parsing --------------------
 
-{-
-runIO (L [W "IO", L (W op : args), L k] : s) =
-  case (op, args) of
-    ("getChar", []) -> getChar >>= runIO . (++s) . (:k) . C
-    ("putChar", [C c]) -> putChar c >> runIO (k ++ s)
-    ("return", [x]) -> runIO (x : k ++ s)
--}
-bind n l = modify $ \(PegState s a w xx) -> PegState s a (M.insertWith interleave n (f l) w) xx
-  where f l = do force
-                 w <- popArg
-                 force >> appendStack l >> force
-                 pushArg w
+lexer = P.makeTokenParser haskellDef
 
-unbind n = modify $ \(PegState s a w xx) -> PegState s a (M.delete n w) xx
-
-gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
-gatherList n l (w@(W "[") : s)
-  | n <= 0 = Right (l,s)
-  | otherwise = gatherList (n-1) (w:l) s
-gatherList n l (w:s) = gatherList n (w:l) s
-gatherList n l [] = Left l
-
+integer = P.integer lexer
+float = P.float lexer
+naturalOrFloat = P.naturalOrFloat lexer
+natural = P.natural lexer
+whiteSpace = P.whiteSpace lexer
+charLiteral = P.charLiteral lexer
+stringLiteral = P.stringLiteral lexer
 
 word :: Parser String
 word = (:) <$> (letter <|> oneOf ":_?") <*> many (alphaNum <|> oneOf "?_'#")
@@ -401,8 +437,6 @@ symbol :: Parser String
 symbol = many1 (oneOf "!@#$%^&*()_+=<>.~/\\|") <|>
         fmap (:[]) (oneOf "[]{};") <|>
         (string "-")
-
---list = char '[' >> stackExpr <* char ']'
 
 number = do m <- optionMaybe (char '-')
             let f = maybe (either I F)
@@ -432,6 +466,7 @@ showStack s = drop 1 $ loop s []
         loop (C x : s) = loop s . (' ':) . shows x
         loop (F x : s) = loop s . (' ':) . shows x
         loop (W x : s) = loop s . ((' ':x) ++)
+        loop (Io n : s) = loop s . (" IO#" ++)
         loop (L [] : s) = loop s . (" [ ]" ++)
         loop (L x : s) = case toString (L x) of
                            Just str -> loop s . (' ':) . shows str
@@ -439,13 +474,11 @@ showStack s = drop 1 $ loop s []
 
 parseStack = parse stackExpr ""
 
-evalStack' fs m src = do
-  s <- fs <$> parseStack src
-  return . observeManyT 8 $ do
-    PegState s _ m _ <- execStateT force $ PegState s [] m S.empty
-    return (s, m)
+-------------------- Main --------------------
 
-evalStack fs m = fmap (either (\(s, a) -> [(reverse a ++ s, m)]) id) . evalStack' fs m
+evalStack (s, m) = observeManyT 8 $ do
+  PegState s _ m _ <- execStateT force $ PegState s [] m S.empty
+  return (s, m)
 
 hGetLines h = do
   e <- hIsEOF h
@@ -460,23 +493,32 @@ main = do
   let files = filter ((==".peg").takeExtension) args
   m <- foldM (\m f -> do
           l <- getLinesFromFile f
-          case load [] m l of
-            Left e -> print e >> return m
-            Right m' -> return m') builtins files
+          load [] m l) builtins files
   runInputT defaultSettings $ evalLoop (Right []) m
 
 load :: Stack
   -> Map String (Peg ())
   -> [String]
-  -> Either ParseError (Map String (Peg ()))
-load s m [] = Right m
+  -> IO (Map String (Peg ()))
+load s m [] = return m
 load s m (input:r) =
-  case head <$> evalStack (++s) m input of
-    Left e -> Left e
-    Right (s', m') -> load s' m' r
+  case parseStack input of
+    Left e -> print e >> return m
+    Right s -> handle (\(_ :: PegException) -> load s m r) $ do
+      (s', m') : _ <- evalStack (s, m)
+      load s' m' r
 
-ifNotNull f [] = []
-ifNotNull f x = f x
+-- I/O ideas
+-- I/O token: dup I/O --> spawn thread, pop I/O --> kill thread
+-- x0 x1 x2      IO# x3 x4  IO# x5
+-- | main thread | thread 0 | thread 1 ...
+-- .. IO# [ x ] dip
+--   <------|
+-- send to thread n-1
+
+makeIOReal = map f
+  where f (W "IO#") = Io 0
+        f x = x
 
 evalLoop :: Either (Stack, Stack) Stack -> Map String (Peg ()) -> InputT IO ()
 evalLoop p m = do
@@ -488,11 +530,13 @@ evalLoop p m = do
   case minput of
     Nothing -> return ()
     Just "" -> return ()
-    Just input -> case evalStack' id m input of
+    Just input -> case parseStack input of
       Left e -> outputStrLn (show e) >> evalLoop p m
-      Right x -> case x of
-        Left s' -> evalLoop (Left s') m
-        Right [] -> evalLoop (Right [W "no"]) m
-        Right ((s',m'):r) -> do
-          mapM_ (outputStrLn . showStack . fst) r
-          evalLoop (Right s') m'
+      Right s -> do
+        x' <- liftIO . handle (\(PegException s a) -> return (Left (s, a))) $ Right <$> evalStack (makeIOReal s, m)
+        case x' of
+          Left s' -> evalLoop (Left s') m
+          Right [] -> evalLoop (Right [W "no"]) m
+          Right ((s',m'):r) -> do
+            mapM_ (outputStrLn . showStack . fst) r
+            evalLoop (Right s') m'
