@@ -47,6 +47,8 @@ Example:
 
 Instead of using a monad to implement pure functional I/O, Peg simply uses a token representing the state of the world, `IO#`.  Words that perform I/O must require `IO#` as an argument.  If the word does not put it back, it will destroy the world.
 
+`IO#` can only be introduced from the top-level, by typing `IO#`.  In other places, such as definitions and `read`, `IO#` is parsed as a word with no special meaning.
+
 Built-in Words
 --------------
 
