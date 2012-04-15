@@ -78,7 +78,7 @@ The format below is:
 
 `False` `deny` --> -- opposite of assert
 
-`x` `y` `\/` --> 'x' \/ 'y' -- continues execution non-deterministically with `x` and `y`
+`x` `y` `\/` --> `x` \/ `y` -- continues execution non-deterministically with `x` and `y`
 
 `int?`, `float?`, `word?`, `list?`, `char?`, `string?` -- test type of argument, returning `True` or `False`
  
@@ -103,7 +103,9 @@ The format below is:
 Peg supports a curly bracket notation to allow for case statements and do-notation.  Curly braces trivially reduce to a nested stack.
 
 `{` --> `[` `[`
+
 `;` --> `]` `[`
+
 `}` --> `]` `]`
 
 Library: lib.peg
