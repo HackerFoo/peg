@@ -36,6 +36,11 @@ The basic types are integers, floats, characters, words, and stacks.  As with th
 
     [1 2 3 +] popr --> [1] 5
 
+A string literal is a stack consisting only of characters.  They are read and displayed backwards from stacks, to make them readable.
+
+    ['o' 'l' 'l' 'e' 'h'] --> "hello"
+    "hello" 0 pushr --> ['o' 'l' 'l' 'e' 'h' 0]
+
 Peg is flat, in that any expression can be divided on white space (except inside a literal), the pieces evaluated independently, and when the results are concatenated, evaluate to an equivalent expression to the original expression.
 
 Example:
@@ -100,6 +105,10 @@ The format below is:
 
 `getChar`, `putChar`, `getLine`, `putStr`, `putStrLn` -- similar to Haskell Prelude.  Instead of running in IO monad, they require `IO` as the first argument, putting it back after executing
 
+A simple IO example:
+
+    IO "What's your name?" putStrLn getLine "!" "Hello " splice putStrLn
+
 Peg supports a curly bracket notation to allow for case statements and do-notation.  Curly braces trivially reduce to a nested stack.
 
 `{` --> `[` `[`
@@ -108,6 +117,10 @@ Peg supports a curly bracket notation to allow for case statements and do-notati
 
 `}` --> `]` `]`
 
+Usage with `case`:
+
+    b {1 a; 2 b} case --> 2
+
 Library: lib.peg
 ----------------
 
@@ -115,7 +128,7 @@ Most words are based on the Haskell Prelude, some stack combinators are taken fr
 
 `foldr` and `foldl` are swapped from the Haskell definitions, because "lists" are stacks, and elements are added to the right side of a stack.  Similarly for `scanr` and `scanl`.
 
-Most of the Haskell Prelude is implemented, except words that aren't very useful or are replaced by a built-in word.  I'm still working on IO.
+Most of the Haskell Prelude is implemented, except words that aren't very useful or are replaced by a built-in word.
 
 Running the Peg Interpreter
 ---------------------------
@@ -133,9 +146,9 @@ Future
 
 ### I/O
 
-I have been modeling I/O after Haskell's monad approach, but monads seem to be better suited to applicative languages, despite being possible in a concatenative language.
+I have tried modeling I/O after Haskell's monad approach, but monads seem to be better suited to applicative languages, despite being possible in a concatenative language.
 
-I have implemented a different way of performing I/O in a pure functional way, as described above (I/O words require the `IO` token.)  This may allow more flexible use of I/O than a monad; threads could be spawned with `IO dup` and ended with `IO pop`.  Also, more complex operations may be possible, requiring multiple `IO`s.
+I have implemented a different method of performing I/O in a pure functional way, as described above (I/O words require an `IO` token.)  This may allow more flexible use of I/O than a monad; threads could be spawned with `IO dup` and ended with `IO pop`.  Also, more complex operations may be possible, requiring multiple `IO`s.
 
 ### Type System
 
