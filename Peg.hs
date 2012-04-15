@@ -48,9 +48,10 @@ import Data.Typeable
 -------------------- Data Types --------------------
 
 type Stack = [Value]
+type Env = Map String (Peg ())
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
-                           psWords :: Map String (Peg ()),
+                           psWords :: Env,
                            psAvoid :: Set Stack }
 type Peg = StateT PegState (LogicT IO)
 data PegException = PegException Stack Stack deriving (Show, Typeable)
@@ -497,9 +498,9 @@ main = do
   runInputT defaultSettings $ evalLoop (Right []) m
 
 load :: Stack
-  -> Map String (Peg ())
+  -> Env
   -> [String]
-  -> IO (Map String (Peg ()))
+  -> IO Env
 load s m [] = return m
 load s m (input:r) =
   case parseStack input of
@@ -516,11 +517,9 @@ load s m (input:r) =
 --   <------|
 -- send to thread n-1
 
-makeIOReal = map f
-  where f (W "IO") = Io
-        f x = x
+makeIOReal = map (\x -> if x == W "IO" then Io else x)
 
-evalLoop :: Either (Stack, Stack) Stack -> Map String (Peg ()) -> InputT IO ()
+evalLoop :: Either (Stack, Stack) Stack -> Env -> InputT IO ()
 evalLoop p m = do
   let text = case p of
                Left (s, a) -> (showStack s, ' ' : showStack (reverse a))
