@@ -133,7 +133,7 @@ Most of the Haskell Prelude is implemented, except words that aren't very useful
 Running the Peg Interpreter
 ---------------------------
 
-Build the interpreter using Cabal (cabal configure; cabal build)
+Build the interpreter using Cabal (`cabal configure; cabal build`).  Alternatively, the latest released version can be installed with `cabal install`.
 
 Just call the `peg` executable with source files to be loaded (such as lib.peg) as arguments.
 
