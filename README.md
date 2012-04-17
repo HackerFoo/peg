@@ -50,7 +50,7 @@ Example:
     ] popr         --> ] popr
     [ 3 ] popr     --> [ ] 3
 
-Instead of using a monad to implement pure functional I/O, Peg simply uses a token representing the state of the world, `IO`.  Words that perform I/O must require `IO` as an argument.  If the word does not put it back, it will destroy the world.
+Instead of using a monad to implement pure functional I/O, Peg simply uses a token representing the state of the world, `IO`.  Words that perform I/O always require `IO` as an argument, and put it back afterwards.
 
 `IO` can only be introduced from the top-level, by typing `IO`.  In other places, such as definitions and `read`, `IO` is parsed as a word with no special meaning.
 
@@ -148,7 +148,7 @@ Future
 
 I have tried modeling I/O after Haskell's monad approach, but monads seem to be better suited to applicative languages, despite being possible in a concatenative language.
 
-I have implemented a different method of performing I/O in a pure functional way, as described above (I/O words require an `IO` token.)  This may allow more flexible use of I/O than a monad; threads could be spawned with `IO dup` and ended with `IO pop`.  Also, more complex operations may be possible, requiring multiple `IO`s.
+I have implemented a different method of performing I/O in a pure functional way, as described above (I/O words require an `IO` token.)
 
 ### Type System
 

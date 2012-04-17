@@ -208,6 +208,7 @@ is_type f = do
 
 anything (W "]") = False
 anything (W "[") = False
+anything Io = False
 anything _ = True
 
 unpackList = do
@@ -234,6 +235,10 @@ gatherList n l (w:s) = gatherList n (w:l) s
 gatherList n l [] = Left l
 
 wordMap = foldl' (flip (uncurry $ M.insertWith mplus)) M.empty
+
+doesNotContainIo (L l) = all doesNotContainIo l
+doesNotContainIo Io = False
+doesNotContainIo _ = True
 
 -------------------- Built-ins --------------------
 
@@ -298,6 +303,7 @@ builtins = wordMap [
               pushStack x),
   ("dup", do getArg anything
              x <- popArg
+             guard $ doesNotContainIo x
              pushStack x
              pushStack x),
   ("]", do PegState s a w xx <- get
@@ -326,7 +332,7 @@ builtins = wordMap [
   ("dupnull?", do unpackList
                   -- take a peek across the fence
                   pushArg $ W "]"
-                  getArg (anything ||. (== W "["))
+                  getArg (anything ||. (== W "[") ||. isIo)
                   x <- popArg
                   pushStack x
                   popArg >>= pushStack
@@ -354,7 +360,6 @@ builtins = wordMap [
   ("list?", is_type isList),
   ("char?", is_type isChar),
   ("string?", is_type isString),
-  ("io?", is_type isIo),
   ("eq?", do getArg anything
              getArg anything
              x <- popArg
