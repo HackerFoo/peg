@@ -167,3 +167,8 @@ I will need to add a module system to allow encapsulation.
 ### Compiler
 
 The compiler will first target C, to allow easy portability.  I am interested in running Peg code in embedded systems, especially because it is difficult to use other high-level languages such as Haskell on most microcontrollers.
+
+Discussion
+----------
+
+See the wiki: [Discussions](https://github.com/HackerFoo/peg/wiki/Discussions)

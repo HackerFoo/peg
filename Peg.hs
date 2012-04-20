@@ -256,6 +256,11 @@ builtins = wordMap [
            I x <- popArg
            I y <- popArg
            pushStack . I $ x ^ y),
+  ("^", do getArgNS (isInt &&. (\(I x) -> x >= 0))
+           getArgNS isFloat
+           F x <- popArg
+           I y <- popArg
+           pushStack . F $ x ^ y),
   ("^^", do getArgNS isInt
             getArgNS isFloat
             F x <- popArg
