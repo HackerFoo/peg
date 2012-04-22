@@ -1,7 +1,7 @@
-peg: Peg.hs
-	ghc -DMAIN -o peg -O -ltinfo Peg.hs
+peg: Peg.hs Peg/*.hs
+	ghc --make -DMAIN -o peg -O -ltinfo Peg.hs
 
 .PHONY: clean
 
 clean:
-	rm -f *.o peg *.hi; rm -rf dist
+	rm -f *.o Peg/*.o *.hi Peg/*.hi peg; rm -rf dist
