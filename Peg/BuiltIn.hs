@@ -97,10 +97,11 @@ is_type f = do
 
 -------------------- Helpers for builtins --------------------
 
-anything (W "]") = False
-anything (W "[") = False
-anything Io = False
-anything _ = True
+anythingIo (W "]") = False
+anythingIo (W "[") = False
+anythingIo _ = True
+
+anything = anythingIo &&. (not . hasIo)
 
 unpackList = do
   getArg (isList ||. (== W "]"))
@@ -127,9 +128,9 @@ gatherList n l [] = Left l
 
 wordMap = foldl' (flip (uncurry $ M.insertWith mplus)) M.empty
 
-doesNotContainIo (L l) = all doesNotContainIo l
-doesNotContainIo Io = False
-doesNotContainIo _ = True
+hasIo (L l) = any hasIo l
+hasIo Io = True
+hasIo _ = False
 
 -------------------- Built-ins --------------------
 
@@ -191,15 +192,14 @@ builtins = wordMap [
   (">", relc (>)),
   (">=", relc (>=)),
   ("pop", getArg anything >> popArg >> force),
-  ("swap", do getArg anything
-              getArg anything
+  ("swap", do getArg $ anythingIo
+              getArg $ anythingIo
               x <- popArg
               y <- popArg
               pushStack y
               pushStack x),
   ("dup", do getArg anything
              x <- popArg
-             guard $ doesNotContainIo x
              pushStack x
              pushStack x),
   ("]", do PegState s a w xx <- get
@@ -208,7 +208,7 @@ builtins = wordMap [
              Right (l, s') -> do
                put $ PegState s' a w xx
                pushStack . L . reverse $ l),
-  ("pushr", do getArg anything
+  ("pushr", do getArg $ anythingIo
                getArg (isList ||. (== W "]"))
                x <- popArg
                case x of
@@ -220,7 +220,7 @@ builtins = wordMap [
   ("popr", do unpackList
               -- reach across the fence
               pushArg $ W "]"
-              getArg (anything ||. (== W "["))
+              getArg (anythingIo ||. (== W "["))
               x <- popArg
               guard $ x /= W "["
               popArg >>= pushStack
@@ -228,7 +228,7 @@ builtins = wordMap [
   ("dupnull?", do unpackList
                   -- take a peek across the fence
                   pushArg $ W "]"
-                  getArg (anything ||. (== W "[") ||. isIo)
+                  getArg (anythingIo ||. (== W "[") ||. isIo)
                   x <- popArg
                   pushStack x
                   popArg >>= pushStack
@@ -276,7 +276,7 @@ builtins = wordMap [
            appendStack l
            force
            pushArg w),
-  ("seq", do getArg anything
+  ("seq", do getArg anythingIo
              force
              pushStack =<< popArg),
   ("show", do getArg anything
