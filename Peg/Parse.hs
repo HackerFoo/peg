@@ -38,7 +38,10 @@ charLiteral = P.charLiteral lexer
 stringLiteral = P.stringLiteral lexer
 
 word :: Parser String
-word = (:) <$> (letter <|> oneOf ":_?") <*> many (alphaNum <|> oneOf "?_'#")
+word = (:) <$> (letter <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#")
+
+var :: Parser String
+var = char '?' *> many1 alphaNum
 
 symbol :: Parser String
 symbol = many1 (oneOf "!@#$%^&*()_+=<>.~/\\|") <|>
@@ -52,6 +55,7 @@ number = do m <- optionMaybe (char '-')
 
 value :: Parser Value
 value = try number        <|>
+        V <$> var         <|>
         W <$> try symbol  <|>
         W <$> word        <|>
         C <$> charLiteral <|>
@@ -73,6 +77,7 @@ showStack s = drop 1 $ loop s []
         loop (C x : s) = loop s . (' ':) . shows x
         loop (F x : s) = loop s . (' ':) . shows x
         loop (W x : s) = loop s . ((' ':x) ++)
+        loop (V x : s) = loop s . ((' ':'?':x) ++)
         loop (Io : s) = loop s . (" IO" ++)
         loop (L [] : s) = loop s . (" [ ]" ++)
         loop (L x : s) = case toString (L x) of

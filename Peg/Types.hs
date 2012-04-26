@@ -40,7 +40,14 @@ type Peg = StateT PegState (LogicT IO)
 data PegException = PegException Stack Stack deriving (Show, Typeable)
 instance Exception PegException
 data Rule = Rule { getRule :: Stack -> Peg Stack }
-data Value = F Double | I Integer | C Char | L Stack | W String | Io deriving (Show, Eq, Ord)
+data Value = F Double
+           | I Integer
+           | C Char
+           | L Stack
+           | W String
+           | V String
+           | Io
+  deriving (Show, Eq, Ord)
 
 isWord (W _) = True
 isWord _ = False
