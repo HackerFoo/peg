@@ -106,6 +106,7 @@ anything = anythingIo &&. (not . hasIo)
 unpackList = do
   getArg (isList ||. (== W "]"))
   x <- popArg
+  pushArg $ W "]"
   case x of
     W "]" -> return ()
     L l -> do pushStack $ W "["
@@ -192,8 +193,8 @@ builtins = wordMap [
   (">", relc (>)),
   (">=", relc (>=)),
   ("pop", getArg anything >> popArg >> force),
-  ("swap", do getArg $ anythingIo
-              getArg $ anythingIo
+  ("swap", do getArg anythingIo
+              getArg anythingIo
               x <- popArg
               y <- popArg
               pushStack y
@@ -208,8 +209,8 @@ builtins = wordMap [
              Right (l, s') -> do
                put $ PegState s' a w xx
                pushStack . L . reverse $ l),
-  ("pushr", do getArg $ anythingIo
-               getArg (isList ||. (== W "]"))
+  ("pushr", do getArg anythingIo
+               getArg $ isList ||. (== W "]")
                x <- popArg
                case x of
                  -- toss it over the fence
@@ -219,22 +220,20 @@ builtins = wordMap [
                            pushStack $ L (x:l)),
   ("popr", do unpackList
               -- reach across the fence
-              pushArg $ W "]"
-              getArg (anythingIo ||. (== W "["))
+              getArg $ anythingIo ||. (== W "[")
               x <- popArg
               guard $ x /= W "["
               popArg >>= pushStack
               pushStack x),
   ("dupnull?", do unpackList
                   -- take a peek across the fence
-                  pushArg $ W "]"
-                  getArg (anythingIo ||. (== W "[") ||. isIo)
+                  getArg $ anythingIo ||. (== W "[") ||. isIo
                   x <- popArg
                   pushStack x
                   popArg >>= pushStack
                   pushStack . W . show $ x == W "["),
   (".", do getArg isList
-           getArg (isList ||. (== W "]"))
+           getArg $ isList ||. (== W "]")
            x <- popArg
            case x of
              -- remove the fence
