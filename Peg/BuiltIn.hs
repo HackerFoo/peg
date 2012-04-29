@@ -248,6 +248,10 @@ builtins = wordMap [
                 addConstraint x (IsEqualTo (W "True"))
                 force),
   ("deny", getArgNS (== W "False") >> popArg >> force),
+  ("deny", do getArgNS isVar
+              V x <- popArg
+              addConstraint x (IsEqualTo (W "False"))
+              force),
   ("int?", is_type isInt),
   ("float?", is_type isFloat),
   ("word?", is_type isWord),
