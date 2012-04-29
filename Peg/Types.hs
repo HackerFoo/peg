@@ -32,10 +32,12 @@ import Data.Typeable
 
 type Stack = [Value]
 type Env = Map String (Peg ())
+data Constraint = IsEqualTo Value deriving (Show)
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Env,
-                           psAvoid :: Set Stack }
+                           psUniqueVarCounter :: Int,
+                           psConstraints :: Map String [Constraint] }
 type Peg = StateT PegState (LogicT IO)
 data PegException = PegException Stack Stack deriving (Show, Typeable)
 instance Exception PegException
@@ -79,3 +81,5 @@ isString = isJust . toString
 isIo Io = True
 isIo _ = False
 
+isVar (V _) = True
+isVar _ = False

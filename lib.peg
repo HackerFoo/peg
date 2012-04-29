@@ -370,3 +370,6 @@
 
 -- ( IO readLn --> IO a ) -- parses input from stdin to a
 [getLine read] "readLn" :def
+
+[pop] "\\/" :def
+[swap pop] "\\/" :def

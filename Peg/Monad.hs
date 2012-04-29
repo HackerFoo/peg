@@ -44,12 +44,12 @@ getArg' check st = do
 getArg ch = getArg' ch ((== W "[") ||. (== W "]"))
 getArgNS ch = getArg' ch (== W "[")
 
-pushStack x = modify (\(PegState s a m xx) -> PegState (x:s) a m xx)
-appendStack x = modify (\(PegState s a m xx) -> PegState (x++s) a m xx)
+pushStack x = modify (\(PegState s a m n c) -> PegState (x:s) a m n c)
+appendStack x = modify (\(PegState s a m n c) -> PegState (x++s) a m n c)
 
 popStack :: Peg Value
-popStack = do PegState (x:s) a m xx <- get
-              put $ PegState s a m xx
+popStack = do PegState (x:s) a m n c <- get
+              put $ PegState s a m n c
               return x
 emptyStack = null . psStack <$> get
 
@@ -58,9 +58,9 @@ done = do
   st <- get
   liftIO . throwIO $ PegException (psStack st) (psArgStack st)
 
-pushArg x = modify (\(PegState s a m xx) -> PegState s (x:a) m xx)
-popArg = do PegState s (x:a) m xx <- get
-            put $ PegState s a m xx
+pushArg x = modify (\(PegState s a m n c) -> PegState s (x:a) m n c)
+popArg = do PegState s (x:a) m n c <- get
+            put $ PegState s a m n c
             return x
 
 doWord w = do
@@ -78,3 +78,7 @@ force = do
 (f ||. g) x = f x || g x
 (f &&. g) x = f x && g x
 
+minsert k x = M.insertWith (++) k [x]
+mlookup k = maybe [] id . M.lookup k
+
+addConstraint v f = modify (\(PegState s a m n c) -> PegState s a m n (minsert v f c))

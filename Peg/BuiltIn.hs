@@ -106,18 +106,19 @@ anything = anythingIo &&. (not . hasIo)
 unpackList = do
   getArg (isList ||. (== W "]"))
   x <- popArg
+  pushArg $ W "]"
   case x of
     W "]" -> return ()
     L l -> do pushStack $ W "["
               appendStack l
 
-bind n l = modify $ \(PegState s a w xx) -> PegState s a (M.insertWith interleave n (f l) w) xx
+bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
   where f l = do force
                  w <- popArg
                  force >> appendStack l >> force
                  pushArg w
 
-unbind n = modify $ \(PegState s a w xx) -> PegState s a (M.delete n w) xx
+unbind nm = modify $ \(PegState s a w n c) -> PegState s a (M.delete nm w) n c
 
 gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
 gatherList n l (w@(W "[") : s)
@@ -192,8 +193,8 @@ builtins = wordMap [
   (">", relc (>)),
   (">=", relc (>=)),
   ("pop", getArg anything >> popArg >> force),
-  ("swap", do getArg $ anythingIo
-              getArg $ anythingIo
+  ("swap", do getArg anythingIo
+              getArg anythingIo
               x <- popArg
               y <- popArg
               pushStack y
@@ -202,14 +203,14 @@ builtins = wordMap [
              x <- popArg
              pushStack x
              pushStack x),
-  ("]", do PegState s a w xx <- get
+  ("]", do PegState s a w n c <- get
            case gatherList 0 [] s of
              Left s' -> pushStack (W "]")
              Right (l, s') -> do
-               put $ PegState s' a w xx
+               put $ PegState s' a w n c
                pushStack . L . reverse $ l),
-  ("pushr", do getArg $ anythingIo
-               getArg (isList ||. (== W "]"))
+  ("pushr", do getArg anythingIo
+               getArg $ isList ||. (== W "]")
                x <- popArg
                case x of
                  -- toss it over the fence
@@ -219,22 +220,20 @@ builtins = wordMap [
                            pushStack $ L (x:l)),
   ("popr", do unpackList
               -- reach across the fence
-              pushArg $ W "]"
-              getArg (anythingIo ||. (== W "["))
+              getArg $ anythingIo ||. (== W "[")
               x <- popArg
               guard $ x /= W "["
               popArg >>= pushStack
               pushStack x),
   ("dupnull?", do unpackList
                   -- take a peek across the fence
-                  pushArg $ W "]"
-                  getArg (anythingIo ||. (== W "[") ||. isIo)
+                  getArg $ anythingIo ||. (== W "[") ||. isIo
                   x <- popArg
                   pushStack x
                   popArg >>= pushStack
                   pushStack . W . show $ x == W "["),
   (".", do getArg isList
-           getArg (isList ||. (== W "]"))
+           getArg $ isList ||. (== W "]")
            x <- popArg
            case x of
              -- remove the fence
@@ -244,12 +243,11 @@ builtins = wordMap [
              L x -> do L y <- popArg
                        pushStack . L $ y ++ x),
   ("assert", getArgNS (== W "True") >> popArg >> force),
+  ("assert", do getArgNS isVar
+                V x <- popArg
+                addConstraint x (IsEqualTo (W "True"))
+                force),
   ("deny", getArgNS (== W "False") >> popArg >> force),
-  ("\\/", do getArg anything
-             getArg anything
-             x <- popArg
-             y <- popArg
-             pushStack x `interleave` pushStack y),
   ("int?", is_type isInt),
   ("float?", is_type isFloat),
   ("word?", is_type isWord),
