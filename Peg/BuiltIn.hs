@@ -136,62 +136,68 @@ hasIo _ = False
 -------------------- Built-ins --------------------
 
 builtins = wordMap [
-  ("+", op2i (+)),
-  ("-", op2i (-)),
-  ("*", op2i (*)),
-  ("div", do getArgNS (isInt &&. (/= (I 0)))
-             getArgNS isInt
-             I x <- popArg
-             I y <- popArg
-             pushStack . I $ x `div` y),
-  ("^", do getArgNS (isInt &&. (\(I x) -> x >= 0))
-           getArgNS isInt
-           I x <- popArg
-           I y <- popArg
-           pushStack . I $ x ^ y),
-  ("^", do getArgNS (isInt &&. (\(I x) -> x >= 0))
-           getArgNS isFloat
-           F x <- popArg
-           I y <- popArg
-           pushStack . F $ x ^ y),
-  ("^^", do getArgNS isInt
-            getArgNS isFloat
-            F x <- popArg
-            I y <- popArg
-            pushStack . F $ x ^^ y),
-  ("**", op2f (**)),
-  ("exp", op1f exp),
-  ("sqrt", op1f sqrt),
-  ("log", op1f log),
-  ("logBase", op2f logBase),
-  ("sin", op1f sin),
-  ("tan", op1f tan),
-  ("cos", op1f cos),
-  ("asin", op1f asin),
-  ("atan", op1f atan),
-  ("acos", op1f acos),
-  ("sinh", op1f sinh),
-  ("tanh", op1f tanh),
-  ("cosh", op1f cosh),
-  ("asinh", op1f asinh),
-  ("atanh", op1f atanh),
-  ("acosh", op1f acosh),
-  ("+", op2f (+)),
-  ("-", op2f (-)),
-  ("*", op2f (*)),
-  ("/", op2f (/)),
-  ("<", reli (<)),
-  ("<=", reli (<=)),
-  (">", reli (>)),
-  (">=", reli (>=)),
-  ("<", relf (<)),
-  ("<=", relf (<=)),
-  (">", relf (>)),
-  (">=", relf (>=)),
-  ("<", relc (<)),
-  ("<=", relc (<=)),
-  (">", relc (>)),
-  (">=", relc (>=)),
+  ("add_int#", op2i (+)), -- +
+  ("sub_int#", op2i (-)), -- -
+  ("mul_int#", op2i (*)), -- *
+  ("div_int#", do getArgNS (isInt &&. (/= (I 0))) -- div
+                  getArgNS isInt
+                  I x <- popArg
+                  I y <- popArg
+                  pushStack . I $ x `div` y),
+  ("pos_power_int#", do getArgNS (isInt &&. (\(I x) -> x >= 0)) -- ^
+                        getArgNS isInt
+                        I x <- popArg
+                        I y <- popArg
+                        pushStack . I $ x ^ y),
+  ("pos_power_float#", do getArgNS (isInt &&. (\(I x) -> x >= 0)) -- ^
+                          getArgNS isFloat
+                          F x <- popArg
+                          I y <- popArg
+                          pushStack . F $ x ^ y),
+  ("int_power_float#", do getArgNS isInt -- ^^
+                          getArgNS isFloat
+                          F x <- popArg
+                          I y <- popArg
+                          pushStack . F $ x ^^ y),
+  ("power_float#", op2f (**)),
+  ("exp#", op1f exp),
+  ("sqrt#", op1f sqrt),
+  ("log#", op1f log),
+  ("logBase#", op2f logBase),
+  ("sin#", op1f sin),
+  ("tan#", op1f tan),
+  ("cos#", op1f cos),
+  ("asin#", op1f asin),
+  ("atan#", op1f atan),
+  ("acos#", op1f acos),
+  ("sinh#", op1f sinh),
+  ("tanh#", op1f tanh),
+  ("cosh#", op1f cosh),
+  ("asinh#", op1f asinh),
+  ("atanh#", op1f atanh),
+  ("acosh#", op1f acosh),
+  ("add_float#", op2f (+)),
+  ("sub_float#", op2f (-)),
+  ("mul_float#", op2f (*)),
+  ("divide_float#", op2f (/)),
+  ("lt_int#", reli (<)),
+  ("lte_int#", reli (<=)),
+  ("gt_int#", reli (>)),
+  ("gte_int#", reli (>=)),
+  ("lt_float#", relf (<)),
+  ("lte_float#", relf (<=)),
+  ("gt_float#", relf (>)),
+  ("gte_float#", relf (>=)),
+  ("lt_char#", relc (<)),
+  ("lte_char#", relc (<=)),
+  ("gt_char#", relc (>)),
+  ("gte_char#", relc (>=)),
+  ("intToFloat#", do getArg isInt
+                     I x <- popArg
+                     pushStack . F . realToFrac $ x),
+  ("round#", opfi round),
+  ("floor#", opfi floor),
+  ("ceiling#", opfi ceiling),
   ("pop", getArg anything >> popArg >> force),
   ("swap", do getArg anythingIo
               getArg anythingIo
@@ -242,22 +248,12 @@ builtins = wordMap [
                          pushStack $ W "]"
              L x -> do L y <- popArg
                        pushStack . L $ y ++ x),
-  ("assert", getArgNS (== W "True") >> popArg >> force),
-  ("assert", do getArgNS isVar
-                V x <- popArg
-                addConstraint x (IsEqualTo (W "True"))
-                force),
-  ("deny", getArgNS (== W "False") >> popArg >> force),
-  ("deny", do getArgNS isVar
-              V x <- popArg
-              addConstraint x (IsEqualTo (W "False"))
-              force),
+  ("!", getArgNS (== W "True") >> popArg >> force),
   ("int?", is_type isInt),
   ("float?", is_type isFloat),
   ("word?", is_type isWord),
   ("list?", is_type isList),
   ("char?", is_type isChar),
-  ("string?", is_type isString),
   ("eq?", do getArg anything
              getArg anything
              x <- popArg
@@ -289,14 +285,6 @@ builtins = wordMap [
               let Right x = parseStack s
               appendStack x
               force),
-  ("realToFrac", do getArg isInt
-                    I x <- popArg
-                    pushStack . F . realToFrac $ x),
-  ("realToFrac", do getArg isFloat
-                    pushStack =<< popArg),
-  ("round", opfi round),
-  ("floor", opfi floor),
-  ("ceiling", opfi ceiling),
   ("getChar", do getArg isIo
                  pushStack =<< popArg
                  liftIO getChar >>= pushStack . C),
@@ -320,5 +308,10 @@ builtins = wordMap [
                   io <- popArg
                   Just s <- toString <$> popArg
                   liftIO $ putStrLn s
-                  pushStack io)]
+                  pushStack io),
+  (":constrain", do getArg isList
+                    getArg isVar
+                    V v <- popArg
+                    L c <- popArg
+                    addConstraint v c)]
 

@@ -44,9 +44,8 @@ var :: Parser String
 var = char '?' *> many1 alphaNum
 
 symbol :: Parser String
-symbol = many1 (oneOf "!@#$%^&*()_+=<>.~/\\|") <|>
-        fmap (:[]) (oneOf "[]{};") <|>
-        (string "-")
+symbol = many1 (oneOf "!@#$%^&*()-_+=<>.~/?\\|") <|>
+         fmap (:[]) (oneOf "[]{};")
 
 number = do m <- optionMaybe (char '-')
             let f = maybe (either I F)
@@ -55,7 +54,7 @@ number = do m <- optionMaybe (char '-')
 
 value :: Parser Value
 value = try number        <|>
-        V <$> var         <|>
+        V <$> try var     <|>
         W <$> try symbol  <|>
         W <$> word        <|>
         C <$> charLiteral <|>

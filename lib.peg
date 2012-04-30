@@ -63,7 +63,7 @@
 --   [pop] ifte] fix] "mod" :def
 
 -- ( A Boolean ( A -> B ) ( A -> C ) ifte -> B \/ C )
-[False pushr swap True pushr rolldown [\/ $] dip eq? assert] "ifte" :def
+[False pushr swap True pushr rolldown [\/ $] dip eq? !] "ifte" :def
 
 -- stack operators
 
@@ -121,7 +121,7 @@
 [dupnull? nip] "null?" :def
 
 -- ( A [] popnull -> A )
-[dupnull? assert pop] "popnull" :def
+[dupnull? ! pop] "popnull" :def
 
 -- ( [A a] [B] movr -> [A] [B a] )
 [[popr] dip swap pushr] "movr" :def
@@ -180,7 +180,7 @@
 -- ( [A] (a -> Boolean) -> [A] [A] )
 [[] rollup span'] "span" :def
 [[popr dup] dip dup [$] dip swap [[swap [swap pushl] dip] dip span'] [pop pushr] ifte] "span'" :def
-[pop dupnull? assert] "span'" :def
+[pop dupnull? !] "span'" :def
 
 -- ( [A] (a -> Boolean) -> [A] )
 [span pop] "takeWhile" :def
@@ -285,14 +285,14 @@
 
 -- ( [A] a elem -> Boolean )
 [[popr] dip dup [==] dip swap [pop2 True seq] [elem] ifte] "elem" :def
-[pop null? False swap assert] "elem" :def
+[pop null? False swap !] "elem" :def
 
 -- ( [A] a notElem -> Boolean )
 [elem not] "notElem" :def
 
 -- ( a [[b a] ..] lookup -> ([b Just] \/ [Nothing]) )
 [popr popr over3 eq? [swap pop swap pop $ just] [pop lookup] ifte] "lookup" :def
-[null? swap pop nothing swap assert] "lookup" :def
+[null? swap pop nothing swap !] "lookup" :def
 
 -- ( ([a Left] \/ [b Right]) (a -> c) (b -> c) either -> c
 [[Right] . swap [Left] . swap [] pushl pushl [popr [head] dip] dip case] "either" :def
@@ -310,8 +310,8 @@
 -- ( [A] [B] (a b -> c) zipWith -> [C] )
 [[[popr] dip popr [swap] dip] dip
   rollup over2 $ [zipWith] dip pushr] "zipWith" :def
-[pop pop null? [] swap assert] "zipWith" :def
-[pop swap pop null? [] swap assert] "zipWith" :def
+[pop pop null? [] swap !] "zipWith" :def
+[pop swap pop null? [] swap !] "zipWith" :def
 
 -- ( [A] [B] zip -> [[a b] ..] )
 [[[] pushl pushl] zipWith] "zip" :def
@@ -330,10 +330,10 @@
 
 -- ( [[a b] ..] unzip -> [A] [B] )
 [popr [unzip] dip popl head swap [pushr] dip swap [pushr] dip seq] "unzip" :def
-[null? [] [] rolldown assert] "unzip" :def
+[null? [] [] rolldown !] "unzip" :def
 
 -- ()
-[False assert] "no" :def
+[False !] "no" :def
 
 -- ( A : -> A )
 [] ":" :def
@@ -373,3 +373,10 @@
 
 [pop] "\\/" :def
 [swap pop] "\\/" :def
+
+[[] :constrain] "!" :def
+[[not !] "deny" :def
+[[not] :constrain] "deny" :def
+
+[list? deny False seq] "string?" :def
+[[char?] all seq] "string?" :def
