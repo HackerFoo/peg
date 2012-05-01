@@ -1,3 +1,62 @@
+-- Builtins
+
+[dup True == [True] [dup False ==] ifte] "boolean?" :def
+[{int?;int?} types] "int2?" :def
+[{float?;int?} types] "float_int?" :def
+[{float?;float?} types] "float2?" :def
+[{char?;char?} types] "char2?" :def
+
+-- checks types with a list of predicates
+[True [] rolldown types'] "types" :def
+[popr dip3 [&& swap] dip2 [pushl] dip types'] "types'" :def
+[popnull swap [$] dip seq] "types'" :def
+
+[int2?! add_int# int?!] "+" :def
+[int2?! sub_int# int?!] "-" :def
+[int2?! mul_int# int?!] "*" :def
+[int2?! dup 0 /= ! div_int# int?!] "div" :def
+[int2?! dup 0 >= ! pos_power_int# int?!] "^" :def
+[float_int?! dup 0 >= ! pos_power_float# float?!] "^" :def
+[float_int?! int_power_float# float?!] "^^" :def
+[float2?! power_float# float?!] "**" :def
+[float?! exp# float?!] "exp" :def
+[float?! sqrt# float?!] "sqrt" :def
+[float?! log# float?!] "log" :def
+[float?! logBase# float?!] "logBase" :def
+[float?! sin# float?!] "sin" :def
+[float?! tan# float?!] "tan" :def
+[float?! cos# float?!] "cos" :def
+[float?! asin# float?!] "asin" :def
+[float?! atan# float?!] "atan" :def
+[float?! acos# float?!] "acos" :def
+[float?! sinh# float?!] "sinh" :def
+[float?! tanh# float?!] "tanh" :def
+[float?! cosh# float?!] "cosh" :def
+[float?! asinh# float?!] "asinh" :def
+[float?! atanh# float?!] "atanh" :def
+[float?! acosh# float?!] "acosh" :def
+[float2?! add_float# float?!] "+" :def
+[float2?! sub_float# float?!] "-" :def
+[float2?! mul_float# float?!] "*" :def
+[float2?! divide_float# float?!] "/" :def
+[int2?! lt_int# boolean?!] "<" :def
+[int2?! lte_int# boolean?!] "<=" :def
+[int2?! gt_int# boolean?!] ">" :def
+[int2?! gte_int# boolean?!] ">=" :def
+[float2?! lt_float# boolean?!] "<" :def
+[float2?! lte_float# boolean?!] "<=" :def
+[float2?! gt_float# boolean?!] ">" :def
+[float2?! gte_float# boolean?!] ">=" :def
+[char2?! lt_char# boolean?!] "<" :def
+[char2?! lte_char# boolean?!] "<=" :def
+[char2?! gt_char# boolean?!] ">" :def
+[char2?! gte_char# boolean?!] ">=" :def
+[int?! intToFloat# float?!] "realToFrac" :def
+[float?!] "realToFrac" :def
+[float?! round# int?!] "round" :def
+[float?! floor# int?!] "floor" :def
+[float?! ceiling# int?!] "ceiling" :def
+
 -- Booleans
 
 -- logical negation
@@ -117,11 +176,8 @@
 -- ( (A) (a -> Boolean) filter -> (A') )
 [[] rollup [dup] swap . [[pushr] [pop] ifte] . foldl] "filter" :def
 
--- ( (A) null? -> Boolean )
-[dupnull? nip] "null?" :def
-
 -- ( A [] popnull -> A )
-[dupnull? ! pop] "popnull" :def
+[null? ! pop] "popnull" :def
 
 -- ( [A a] [B] movr -> [A] [B a] )
 [[popr] dip swap pushr] "movr" :def
@@ -139,7 +195,7 @@
 [over [dup [$] dip iterate] dip] "iterate" :def
 
 -- ( [a .. b] reverse -> [b .. a] )
-[dupnull? [pop] [movl reverse'] ifte] "reverse'" :def
+[null? [pop] [movl reverse'] ifte] "reverse'" :def
 [[] swap reverse'] "reverse" :def
 
 -- ( [a A] popl -> a [A] )
@@ -156,7 +212,7 @@
 [[popl] dip foldl] "foldl1" :def
 
 -- ( a [B] (a b -> a) foldr -> a )
-[over null? [pop2] [[popr swap] dip dup dip2 foldr] ifte] "foldr" :def
+[over null? nip [pop2] [[popr swap] dip dup dip2 foldr] ifte] "foldr" :def
 
 -- ( [A] (a a -> a) foldr1 -> a )
 [[popr swap] dip foldr] "foldr1" :def
@@ -167,7 +223,7 @@
 
 -- drop n stack items
 -- ( [A] Int drop -> [A] )
-[dup 0 <= [pop] [1 - swap dupnull? [nip] [tail swap drop] ifte] ifte] "drop" :def
+[dup 0 <= [pop] [1 - swap null? [nip] [tail swap drop] ifte] ifte] "drop" :def
 
 -- take n stack items
 -- ( [A] Int take -> [A] )
@@ -175,12 +231,12 @@
 
 -- ( [A] Int splitAt -> [A] [A] )
 [[] rollup splitAt'] "splitAt" :def
-[dup 0 <= [pop] [1- over null? [pop] [[movl] dip splitAt'] ifte] ifte] "splitAt'" :def
+[dup 0 <= [pop] [1- over null? nip [pop] [[movl] dip splitAt'] ifte] ifte] "splitAt'" :def
 
 -- ( [A] (a -> Boolean) -> [A] [A] )
 [[] rollup span'] "span" :def
 [[popr dup] dip dup [$] dip swap [[swap [swap pushl] dip] dip span'] [pop pushr] ifte] "span'" :def
-[pop dupnull? !] "span'" :def
+[pop null?!] "span'" :def
 
 -- ( [A] (a -> Boolean) -> [A] )
 [span pop] "takeWhile" :def
@@ -196,7 +252,7 @@
 
 -- ( [A] length -> Int )
 [0 length'] "length" :def
-[over null? [nip] [1+ [tail] dip length'] ifte] "length'" :def
+[over null? nip [nip] [1+ [tail] dip length'] ifte] "length'" :def
 
 -- ( [A a] top -> [A a] a )
 [popr dup [pushr] dip seq] "top" :def
@@ -256,8 +312,8 @@
 [eq?] "==" :def
 [[popr] dip swap [popr] dip ==] "headEq" :def
 [headEq [==] [pop2 False] ifte] "==" :def
-[popnull null?] "==" :def
-[swap popnull null?] "==" :def
+[popnull null? nip] "==" :def
+[swap popnull null? nip] "==" :def
 
 -- ( [A a] head -> a )
 [popr swap pop] "head" :def
@@ -285,14 +341,14 @@
 
 -- ( [A] a elem -> Boolean )
 [[popr] dip dup [==] dip swap [pop2 True seq] [elem] ifte] "elem" :def
-[pop null? False swap !] "elem" :def
+[pop null? nip False swap !] "elem" :def
 
 -- ( [A] a notElem -> Boolean )
 [elem not] "notElem" :def
 
 -- ( a [[b a] ..] lookup -> ([b Just] \/ [Nothing]) )
 [popr popr over3 eq? [swap pop swap pop $ just] [pop lookup] ifte] "lookup" :def
-[null? swap pop nothing swap !] "lookup" :def
+[null? nip swap pop nothing swap !] "lookup" :def
 
 -- ( ([a Left] \/ [b Right]) (a -> c) (b -> c) either -> c
 [[Right] . swap [Left] . swap [] pushl pushl [popr [head] dip] dip case] "either" :def
@@ -308,10 +364,9 @@
 
 
 -- ( [A] [B] (a b -> c) zipWith -> [C] )
-[[[popr] dip popr [swap] dip] dip
-  rollup over2 $ [zipWith] dip pushr] "zipWith" :def
-[pop pop null? [] swap !] "zipWith" :def
-[pop swap pop null? [] swap !] "zipWith" :def
+[[[popr] dip popr [swap] dip] dip rollup over2 $ [zipWith] dip pushr] "zipWith" :def
+[pop pop null? nip [] swap !] "zipWith" :def
+[pop swap pop null? nip [] swap !] "zipWith" :def
 
 -- ( [A] [B] zip -> [[a b] ..] )
 [[[] pushl pushl] zipWith] "zip" :def
@@ -330,7 +385,7 @@
 
 -- ( [[a b] ..] unzip -> [A] [B] )
 [popr [unzip] dip popl head swap [pushr] dip swap [pushr] dip seq] "unzip" :def
-[null? [] [] rolldown !] "unzip" :def
+[null? nip [] [] rolldown !] "unzip" :def
 
 -- ()
 [False !] "no" :def
@@ -379,4 +434,6 @@
 [[not] :constrain] "deny" :def
 
 [list? deny False seq] "string?" :def
-[[char?] all seq] "string?" :def
+[dup [char? nip] all seq] "string?" :def
+
+[== not] "/=" :def

@@ -45,45 +45,57 @@ import Data.Typeable
 
 -------------------- Converters --------------------
 
-op2i f = do
+op2i_i f = do
   getArgNS isInt
   getArgNS isInt
   I x <- popArg
   I y <- popArg
   pushStack $ I (x `f` y)
 
-op2f f = do
+op2f_f f = do
   getArgNS isFloat
   getArgNS isFloat
   F x <- popArg
   F y <- popArg
   pushStack $ F (x `f` y)
 
-op1f f = do
+opfi_f f = do
+  getArgNS isInt
+  getArgNS isFloat
+  F x <- popArg
+  I y <- popArg
+  pushStack $ F (x `f` y)
+
+opf_f f = do
   getArgNS isFloat
   F x <- popArg
   pushStack . F . f $ x
 
-opfi f = do
+opf_i f = do
   getArg isFloat
   F x <- popArg
   pushStack . I . f $ x
 
-reli f = do
+opi_f f = do
+  getArg isInt
+  I x <- popArg
+  pushStack . F . f $ x
+
+op2i_b f = do
   getArgNS isInt
   getArgNS isInt
   I x <- popArg
   I y <- popArg
   pushStack . W . show $ x `f` y
 
-relf f = do
+op2f_b f = do
   getArgNS isFloat
   getArgNS isFloat
   F x <- popArg
   F y <- popArg
   pushStack . W . show $ x `f` y
 
-relc f = do
+op2c_b f = do
   getArgNS isChar
   getArgNS isChar
   C x <- popArg
@@ -93,7 +105,9 @@ relc f = do
 is_type :: (Value -> Bool) -> Peg ()
 is_type f = do
   getArg anything
-  pushStack . W . show . f =<< popArg
+  x <- popArg
+  pushStack x
+  pushStack . W . show $ f x
 
 -------------------- Helpers for builtins --------------------
 
@@ -136,68 +150,50 @@ hasIo _ = False
 -------------------- Built-ins --------------------
 
 builtins = wordMap [
-  ("add_int#", op2i (+)), -- +
-  ("sub_int#", op2i (-)), -- -
-  ("mul_int#", op2i (*)), -- *
-  ("div_int#", do getArgNS (isInt &&. (/= (I 0))) -- div
-                  getArgNS isInt
-                  I x <- popArg
-                  I y <- popArg
-                  pushStack . I $ x `div` y),
-  ("pos_power_int#", do getArgNS (isInt &&. (\(I x) -> x >= 0)) -- ^
-                        getArgNS isInt
-                        I x <- popArg
-                        I y <- popArg
-                        pushStack . I $ x ^ y),
-  ("pos_power_float#", do getArgNS (isInt &&. (\(I x) -> x >= 0)) -- ^
-                          getArgNS isFloat
-                          F x <- popArg
-                          I y <- popArg
-                          pushStack . F $ x ^ y),
-  ("int_power_float#", do getArgNS isInt -- ^^
-                          getArgNS isFloat
-                          F x <- popArg
-                          I y <- popArg
-                          pushStack . F $ x ^^ y),
-  ("power_float#", op2f (**)),
-  ("exp#", op1f exp),
-  ("sqrt#", op1f sqrt),
-  ("log#", op1f log),
-  ("logBase#", op2f logBase),
-  ("sin#", op1f sin),
-  ("tan#", op1f tan),
-  ("cos#", op1f cos),
-  ("asin#", op1f asin),
-  ("atan#", op1f atan),
-  ("acos#", op1f acos),
-  ("sinh#", op1f sinh),
-  ("tanh#", op1f tanh),
-  ("cosh#", op1f cosh),
-  ("asinh#", op1f asinh),
-  ("atanh#", op1f atanh),
-  ("acosh#", op1f acosh),
-  ("add_float#", op2f (+)),
-  ("sub_float#", op2f (-)),
-  ("mul_float#", op2f (*)),
-  ("divide_float#", op2f (/)),
-  ("lt_int#", reli (<)),
-  ("lte_int#", reli (<=)),
-  ("gt_int#", reli (>)),
-  ("gte_int#", reli (>=)),
-  ("lt_float#", relf (<)),
-  ("lte_float#", relf (<=)),
-  ("gt_float#", relf (>)),
-  ("gte_float#", relf (>=)),
-  ("lt_char#", relc (<)),
-  ("lte_char#", relc (<=)),
-  ("gt_char#", relc (>)),
-  ("gte_char#", relc (>=)),
-  ("intToFloat#", do getArg isInt
-                     I x <- popArg
-                     pushStack . F . realToFrac $ x),
-  ("round#", opfi round),
-  ("floor#", opfi floor),
-  ("ceiling#", opfi ceiling),
+  ("add_int#", op2i_i (+)), -- +
+  ("sub_int#", op2i_i (-)), -- -
+  ("mul_int#", op2i_i (*)), -- *
+  ("div_int#", op2i_i div),
+  ("pos_power_int#", op2i_i (^)),
+  ("pos_power_float#", opfi_f (^)),
+  ("int_power_float#", opfi_f (^^)),
+  ("power_float#", op2f_f (**)),
+  ("exp#", opf_f exp),
+  ("sqrt#", opf_f sqrt),
+  ("log#", opf_f log),
+  ("logBase#", op2f_f logBase),
+  ("sin#", opf_f sin),
+  ("tan#", opf_f tan),
+  ("cos#", opf_f cos),
+  ("asin#", opf_f asin),
+  ("atan#", opf_f atan),
+  ("acos#", opf_f acos),
+  ("sinh#", opf_f sinh),
+  ("tanh#", opf_f tanh),
+  ("cosh#", opf_f cosh),
+  ("asinh#", opf_f asinh),
+  ("atanh#", opf_f atanh),
+  ("acosh#", opf_f acosh),
+  ("add_float#", op2f_f (+)),
+  ("sub_float#", op2f_f (-)),
+  ("mul_float#", op2f_f (*)),
+  ("divide_float#", op2f_f (/)),
+  ("lt_int#", op2i_b (<)),
+  ("lte_int#", op2i_b (<=)),
+  ("gt_int#", op2i_b (>)),
+  ("gte_int#", op2i_b (>=)),
+  ("lt_float#", op2f_b (<)),
+  ("lte_float#", op2f_b (<=)),
+  ("gt_float#", op2f_b (>)),
+  ("gte_float#", op2f_b (>=)),
+  ("lt_char#", op2c_b (<)),
+  ("lte_char#", op2c_b (<=)),
+  ("gt_char#", op2c_b (>)),
+  ("gte_char#", op2c_b (>=)),
+  ("intToFloat#", opi_f realToFrac),
+  ("round#", opf_i round),
+  ("floor#", opf_i floor),
+  ("ceiling#", opf_i ceiling),
   ("pop", getArg anything >> popArg >> force),
   ("swap", do getArg anythingIo
               getArg anythingIo
@@ -231,13 +227,13 @@ builtins = wordMap [
               guard $ x /= W "["
               popArg >>= pushStack
               pushStack x),
-  ("dupnull?", do unpackList
-                  -- take a peek across the fence
-                  getArg $ anythingIo ||. (== W "[") ||. isIo
-                  x <- popArg
-                  pushStack x
-                  popArg >>= pushStack
-                  pushStack . W . show $ x == W "["),
+  ("null?", do unpackList
+               -- take a peek across the fence
+               getArg $ anythingIo ||. (== W "[") ||. isIo
+               x <- popArg
+               pushStack x
+               popArg >>= pushStack
+               pushStack . W . show $ x == W "["),
   (".", do getArg isList
            getArg $ isList ||. (== W "]")
            x <- popArg
@@ -252,7 +248,14 @@ builtins = wordMap [
   ("int?", is_type isInt),
   ("float?", is_type isFloat),
   ("word?", is_type isWord),
-  ("list?", is_type isList),
+  ("list?", do getArg $ anything ||. (== W "]")
+               x <- popArg
+               pushStack x
+               pushStack . W $
+                 case x of
+                   W "]" -> "True"
+                   L _ -> "True"
+                   _ -> "False"),
   ("char?", is_type isChar),
   ("eq?", do getArg anything
              getArg anything
