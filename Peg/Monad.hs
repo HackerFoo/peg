@@ -19,6 +19,7 @@
 module Peg.Monad where
 
 import Peg.Types
+import Peg.Parse (traceStack)
 
 import Control.Applicative
 import Control.Monad.State
@@ -27,7 +28,7 @@ import qualified Data.Map as M
 import Control.Exception hiding (try)
 
 -- | pop an argument from the stack, push onto argument stack
-getArg' check st = do
+getList check = do
   force
   em <- emptyStack
   if em
@@ -36,13 +37,24 @@ getArg' check st = do
       x <- popStack
       if check x
         then return ()
-        else if st x
+        else if x == W "[" || x == W "]"
                then pushStack x >> done
                else mzero
       pushArg x
 
-getArg ch = getArg' ch ((== W "[") ||. (== W "]"))
-getArgNS ch = getArg' ch (== W "[")
+getArg check = do
+  force
+  em <- emptyStack
+  if em
+    then done
+    else do
+      x <- popStack
+      if check x
+        then return ()
+        else if x == W "["
+               then pushStack x >> done
+               else mzero
+      pushArg x
 
 pushStack x = modify (\(PegState s a m n c) -> PegState (x:s) a m n c)
 appendStack x = modify (\(PegState s a m n c) -> PegState (x++s) a m n c)
@@ -59,6 +71,8 @@ done = do
   liftIO . throwIO $ PegException (psStack st) (psArgStack st)
 
 pushArg x = modify (\(PegState s a m n c) -> PegState s (x:a) m n c)
+
+popArg :: Peg Value
 popArg = do PegState s (x:a) m n c <- get
             put $ PegState s a m n c
             return x

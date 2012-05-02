@@ -7,16 +7,16 @@
 [{char?;char?} types] "char2?" :def
 
 -- checks types with a list of predicates
-[True [] rolldown types'] "types" :def
-[popr dip3 [&& swap] dip2 [pushl] dip types'] "types'" :def
-[popnull swap [$] dip seq] "types'" :def
+[[] swap types'] "types" :def
+[popr dip2 rolldown [[pushl] dip types'] [pop $ False seq] ifte] "types'" :def
+[popnull $ True seq] "types'" :def
 
 [int2?! add_int# int?!] "+" :def
 [int2?! sub_int# int?!] "-" :def
 [int2?! mul_int# int?!] "*" :def
-[int2?! dup 0 /= ! div_int# int?!] "div" :def
-[int2?! dup 0 >= ! pos_power_int# int?!] "^" :def
-[float_int?! dup 0 >= ! pos_power_float# float?!] "^" :def
+[{int?; int? [dup 0 /=] dip &&} types! div_int# int?!] "div" :def
+[{int?; int? [dup 0 >=] dip &&} types! pos_power_int# int?!] "^" :def
+[{float?; int? [dup 0 >=] dip &&} types! pos_power_float# float?!] "^" :def
 [float_int?! int_power_float# float?!] "^^" :def
 [float2?! power_float# float?!] "**" :def
 [float?! exp# float?!] "exp" :def
@@ -56,15 +56,30 @@
 [float?! round# int?!] "round" :def
 [float?! floor# int?!] "floor" :def
 [float?! ceiling# int?!] "ceiling" :def
-[io? not! pop#] "pop" :def
-[io? not! dup#] "dup" :def
+[hasIO? not! pop#] "pop" :def
+[hasIO? not! dup#] "dup" :def
 [swap#] "swap" :def
+[list?! $#] "$" :def
+
+[list?! dip#] "dip" :def
+["[" read#] "lbrac" :def
+["]" read#] "rbrac" :def
+[null? not! unpack# [rbrac] dip# seq] "popr" :def
+[[list?! unpack#] dip# seq rbrac] "pushr" :def
+[[list?! unpack#] dip# seq $# rbrac] "." :def
+
+[show# string?!] "show" :def
+[string?! read#] "read" :def
+[io?! getChar# {io?;char?} types!] "getChar" :def
+[{io?;char?} types! putChar# io?!] "putChar" :def
+
 
 -- Booleans
 
 -- logical negation
 -- ( Boolean not -> Boolean )
-[[False] [True] ifte] "not" :def
+[False eq?! True seq] "not" :def
+[True eq?! False seq] "not" :def
 
 -- logical conjunction
 -- ( Boolean Boolean && -> Boolean )
@@ -157,7 +172,7 @@
 [swap [swap] dip swap] "rotate" :def
 
 -- ( a b ( a -> c ) dip -> c b )
-[swap pushr $] "dip" :def
+-- [swap pushr $] "dip" :def
 
 -- ( a b c ( a -> d ) dip2 -> d b c )
 [swap pushr swap pushr $ swap] "dip2" :def
@@ -423,6 +438,12 @@
 
 -- I/O
 
+[[putChar] foldr] "putStr" :def
+[putStr '\n' putChar] "putStrLn" :def
+
+["" getLine'] "getLine" :def
+[[getChar] dip swap dup '\n' eq? [pop reverse] [pushr getLine'] ifte] "getLine'" :def
+
 -- ( IO a print --> IO ) -- prints representation of a to stdout
 [show putStrLn] "print" :def
 
@@ -432,9 +453,7 @@
 [pop] "\\/" :def
 [swap pop] "\\/" :def
 
-[[] :constrain] "!" :def
 [[not !] "deny" :def
-[[not] :constrain] "deny" :def
 
 [list? deny False seq] "string?" :def
 [dup [char? nip] all seq] "string?" :def

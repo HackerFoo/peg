@@ -46,28 +46,28 @@ import Data.Typeable
 -------------------- Converters --------------------
 
 op2i_i f = do
-  getArgNS isInt
-  getArgNS isInt
+  getArg isInt
+  getArg isInt
   I x <- popArg
   I y <- popArg
   pushStack $ I (x `f` y)
 
 op2f_f f = do
-  getArgNS isFloat
-  getArgNS isFloat
+  getArg isFloat
+  getArg isFloat
   F x <- popArg
   F y <- popArg
   pushStack $ F (x `f` y)
 
 opfi_f f = do
-  getArgNS isInt
-  getArgNS isFloat
+  getArg isInt
+  getArg isFloat
   F x <- popArg
   I y <- popArg
   pushStack $ F (x `f` y)
 
 opf_f f = do
-  getArgNS isFloat
+  getArg isFloat
   F x <- popArg
   pushStack . F . f $ x
 
@@ -82,54 +82,53 @@ opi_f f = do
   pushStack . F . f $ x
 
 op2i_b f = do
-  getArgNS isInt
-  getArgNS isInt
+  getArg isInt
+  getArg isInt
   I x <- popArg
   I y <- popArg
   pushStack . W . show $ x `f` y
 
 op2f_b f = do
-  getArgNS isFloat
-  getArgNS isFloat
+  getArg isFloat
+  getArg isFloat
   F x <- popArg
   F y <- popArg
   pushStack . W . show $ x `f` y
 
 op2c_b f = do
-  getArgNS isChar
-  getArgNS isChar
+  getArg isChar
+  getArg isChar
   C x <- popArg
   C y <- popArg
   pushStack . W . show $ x `f` y
 
-is_type :: (Value -> Bool) -> Peg ()
-is_type f = do
-  getArg $ anythingIo ||. (== W "]")
+isType :: (Value -> Bool) -> Peg ()
+isType f = do
+  getList $ anything ||. (== W "]")
   x <- popArg
   pushStack x
   pushStack . W . show $ f x
 
 -------------------- Helpers for builtins --------------------
 
-anythingIo (W "]") = False
-anythingIo (W "[") = False
-anythingIo _ = True
-
-anything = anythingIo &&. (not . hasIo)
+anything (W "]") = False
+anything (W "[") = False
+anything _ = True
 
 unpackList = do
-  getArg (isList ||. (== W "]"))
+  getList $ isList ||. (== W "]")
   x <- popArg
-  pushArg $ W "]"
   case x of
     W "]" -> return ()
     L l -> do pushStack $ W "["
               appendStack l
 
 bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
-  where f l = do force
+  where f l = do --force
                  w <- popArg
-                 force >> appendStack l >> force
+                 force
+                 appendStack l
+                 force
                  pushArg w
 
 unbind nm = modify $ \(PegState s a w n c) -> PegState s a (M.delete nm w) n c
@@ -150,9 +149,9 @@ hasIo _ = False
 -------------------- Built-ins --------------------
 
 builtins = wordMap [
-  ("add_int#", op2i_i (+)), -- +
-  ("sub_int#", op2i_i (-)), -- -
-  ("mul_int#", op2i_i (*)), -- *
+  ("add_int#", op2i_i (+)),
+  ("sub_int#", op2i_i (-)),
+  ("mul_int#", op2i_i (*)),
   ("div_int#", op2i_i div),
   ("pos_power_int#", op2i_i (^)),
   ("pos_power_float#", opfi_f (^)),
@@ -194,122 +193,86 @@ builtins = wordMap [
   ("round#", opf_i round),
   ("floor#", opf_i floor),
   ("ceiling#", opf_i ceiling),
-  ("pop#", getArg anything >> popArg >> force),
-  ("swap#", do getArg anythingIo
-               getArg anythingIo
+  ("pop#", getList anything >> popArg >> force),
+  ("swap#", do getList anything
+               getList anything
                x <- popArg
                y <- popArg
                pushStack y
                pushStack x),
-  ("dup#", do getArg anything
+  ("dup#", do getList anything
               x <- popArg
               pushStack x
               pushStack x),
+  ("dip#", do getList isList
+              getList anything
+              x <- popArg
+              L l <- popArg
+              appendStack $ x : l),
+  ("$#", do getList isList
+            L l <- popArg
+            w <- popArg -- temporarily remove $ from the arg stack
+            appendStack l
+            force
+            pushArg w),
+  ("$$#", do getList isList
+             L l <- popArg
+             w <- popArg -- temporarily remove $ from the arg stack
+             appendStack l
+             pushArg w),
+  ("seq", do getList anything
+             force
+             pushStack =<< popArg),
   ("]", do PegState s a w n c <- get
            case gatherList 0 [] s of
              Left s' -> pushStack (W "]")
              Right (l, s') -> do
                put $ PegState s' a w n c
                pushStack . L . reverse $ l),
-  ("pushr", do getArg anythingIo
-               getArg $ isList ||. (== W "]")
-               x <- popArg
-               case x of
-                 -- toss it over the fence
-                 W "]" -> do pushStack =<< popArg
-                             pushStack (W "]")
-                 L l -> do x <- popArg
-                           pushStack $ L (x:l)),
-  ("popr", do unpackList
-              -- reach across the fence
-              getArg $ anythingIo ||. (== W "[")
-              x <- popArg
-              guard $ x /= W "["
-              popArg >>= pushStack
-              pushStack x),
   ("null?", do unpackList
-               -- take a peek across the fence
-               getArg $ anythingIo ||. (== W "[") ||. isIo
+               pushArg $ W "]"
+               getList $ const True
                x <- popArg
                pushStack x
                popArg >>= pushStack
                pushStack . W . show $ x == W "["),
-  (".", do getArg isList
-           getArg $ isList ||. (== W "]")
-           x <- popArg
-           case x of
-             -- remove the fence
-             W "]" -> do L l <- popArg
-                         appendStack l
-                         pushStack $ W "]"
-             L x -> do L y <- popArg
-                       pushStack . L $ y ++ x),
-  ("!", getArgNS (== W "True") >> popArg >> force),
-  ("int?", is_type isInt),
-  ("float?", is_type isFloat),
-  ("word?", is_type $ isWord &&. (/= W "]")),
-  ("list?", is_type $ isList ||. (== W "]")),
-  ("char?", is_type isChar),
-  ("io?", is_type isIo),
-  ("hasIO?", is_type hasIo),
-  ("eq?", do getArg anything
-             getArg anything
+  ("int?", isType isInt),
+  ("float?", isType isFloat),
+  ("word?", isType $ isWord &&. (/= W "]")),
+  ("list?", isType $ isList ||. (== W "]")),
+  ("char?", isType isChar),
+  ("io?", isType isIo),
+  ("hasIO?", isType hasIo),
+  ("eq?", do getList anything
+             getList anything
              x <- popArg
              y <- popArg
              guard . not $ isList x && isList y
              pushStack . W . show $ x == y),
-  (":def", do getArg isString
-              getArg isList
+  ("!", getArg (== W "True") >> popArg >> force),
+  (":def", do getList isString
+              getList isList
               L l <- popArg
               Just s <- toString <$> popArg
               bind s l),
-  (":undef", do getArg isString
+  (":undef", do getList isString
                 Just s <- toString <$> popArg
                 unbind s),
-  ("$", do getArg isList
-           L l <- popArg
-           w <- popArg -- temporarily remove $ from the arg stack
-           appendStack l
-           force
-           pushArg w),
-  ("seq", do getArg anythingIo
-             force
-             pushStack =<< popArg),
-  ("show", do getArg anything
-              x <- popArg
-              pushStack . L . map C $ showStack [x]),
-  ("read", do getArg isString
-              Just s <- toString <$> popArg
-              let Right x = parseStack s
-              appendStack x
-              force),
-  ("getChar", do getArg isIo
-                 pushStack =<< popArg
-                 liftIO getChar >>= pushStack . C),
-  ("putChar", do getArg isChar
-                 getArg isIo
-                 io <- popArg
-                 C c <- popArg
-                 liftIO $ putChar c
-                 pushStack io),
-  ("getLine", do getArg isIo
-                 pushStack =<< popArg
-                 liftIO getLine >>= pushStack . L . map C),
-  ("putStr", do getArg isString
-                getArg isIo
-                io <- popArg
-                Just s <- toString <$> popArg
-                liftIO $ putStr s
-                pushStack io),
-  ("putStrLn", do getArg isString
+  ("show#", do getList anything
+               x <- popArg
+               pushStack . L . map C $ showStack [x]),
+  ("read#", do getList isString
+               Just s <- toString <$> popArg
+               let Right x = parseStack s
+               appendStack x
+               force),
+  ("getChar#", do getArg isIo
+                  pushStack =<< popArg
+                  liftIO getChar >>= pushStack . C),
+  ("putChar#", do getArg isChar
                   getArg isIo
                   io <- popArg
-                  Just s <- toString <$> popArg
-                  liftIO $ putStrLn s
+                  C c <- popArg
+                  liftIO $ putChar c
                   pushStack io),
-  (":constrain", do getArg isList
-                    getArg isVar
-                    V v <- popArg
-                    L c <- popArg
-                    addConstraint v c)]
-
+  ("unpack#", unpackList)]
