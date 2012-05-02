@@ -104,7 +104,7 @@ op2c_b f = do
 
 is_type :: (Value -> Bool) -> Peg ()
 is_type f = do
-  getArg anything
+  getArg $ anythingIo ||. (== W "]")
   x <- popArg
   pushStack x
   pushStack . W . show $ f x
@@ -194,17 +194,17 @@ builtins = wordMap [
   ("round#", opf_i round),
   ("floor#", opf_i floor),
   ("ceiling#", opf_i ceiling),
-  ("pop", getArg anything >> popArg >> force),
-  ("swap", do getArg anythingIo
-              getArg anythingIo
+  ("pop#", getArg anything >> popArg >> force),
+  ("swap#", do getArg anythingIo
+               getArg anythingIo
+               x <- popArg
+               y <- popArg
+               pushStack y
+               pushStack x),
+  ("dup#", do getArg anything
               x <- popArg
-              y <- popArg
-              pushStack y
+              pushStack x
               pushStack x),
-  ("dup", do getArg anything
-             x <- popArg
-             pushStack x
-             pushStack x),
   ("]", do PegState s a w n c <- get
            case gatherList 0 [] s of
              Left s' -> pushStack (W "]")
@@ -247,16 +247,11 @@ builtins = wordMap [
   ("!", getArgNS (== W "True") >> popArg >> force),
   ("int?", is_type isInt),
   ("float?", is_type isFloat),
-  ("word?", is_type isWord),
-  ("list?", do getArg $ anything ||. (== W "]")
-               x <- popArg
-               pushStack x
-               pushStack . W $
-                 case x of
-                   W "]" -> "True"
-                   L _ -> "True"
-                   _ -> "False"),
+  ("word?", is_type $ isWord &&. (/= W "]")),
+  ("list?", is_type $ isList ||. (== W "]")),
   ("char?", is_type isChar),
+  ("io?", is_type isIo),
+  ("hasIO?", is_type hasIo),
   ("eq?", do getArg anything
              getArg anything
              x <- popArg
