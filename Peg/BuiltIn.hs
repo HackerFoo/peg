@@ -43,6 +43,8 @@ import qualified Data.Map as M
 import Control.Exception hiding (try)
 import Data.Typeable
 
+import Debug.Trace
+
 -------------------- Converters --------------------
 
 op2i_i f = do
@@ -115,7 +117,7 @@ anything (W "]") = False
 anything (W "[") = False
 anything _ = True
 
-unpackList = do
+unpackR = do
   getList $ isList ||. (== W "]")
   x <- popArg
   case x of
@@ -126,7 +128,7 @@ unpackList = do
 bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
   where f l = do --force
                  w <- popArg
-                 force
+                 --force
                  appendStack l
                  force
                  pushArg w
@@ -209,17 +211,13 @@ builtins = wordMap [
               x <- popArg
               L l <- popArg
               appendStack $ x : l),
+  ("unpackR#", unpackR),
   ("$#", do getList isList
             L l <- popArg
             w <- popArg -- temporarily remove $ from the arg stack
             appendStack l
             force
             pushArg w),
-  ("$$#", do getList isList
-             L l <- popArg
-             w <- popArg -- temporarily remove $ from the arg stack
-             appendStack l
-             pushArg w),
   ("seq", do getList anything
              force
              pushStack =<< popArg),
@@ -229,7 +227,7 @@ builtins = wordMap [
              Right (l, s') -> do
                put $ PegState s' a w n c
                pushStack . L . reverse $ l),
-  ("null?", do unpackList
+  ("null?", do unpackR
                pushArg $ W "]"
                getList $ const True
                x <- popArg
@@ -274,5 +272,4 @@ builtins = wordMap [
                   io <- popArg
                   C c <- popArg
                   liftIO $ putChar c
-                  pushStack io),
-  ("unpack#", unpackList)]
+                  pushStack io)]

@@ -62,17 +62,15 @@
 [list?! $#] "$" :def
 
 [list?! dip#] "dip" :def
-["[" read#] "lbrac" :def
-["]" read#] "rbrac" :def
-[null? not! unpack# [rbrac] dip# seq] "popr" :def
-[[list?! unpack#] dip# seq rbrac] "pushr" :def
-[[list?! unpack#] dip# seq $# rbrac] "." :def
+["]" read#] "rbrac#" :def
+[null? not! unpackR# [rbrac#] dip# seq] "popr" :def
+[[list?! unpackR#] dip# seq [rbrac#] seq $#] "pushr" :def
+[[list?! unpackR#] dip# seq _ pushr $# [rbrac#] seq $# popr pop#] "." :def
 
 [show# string?!] "show" :def
 [string?! read#] "read" :def
 [io?! getChar# {io?;char?} types!] "getChar" :def
 [{io?;char?} types! putChar# io?!] "putChar" :def
-
 
 -- Booleans
 
