@@ -56,16 +56,15 @@
 [float?! round# int?!] "round" :def
 [float?! floor# int?!] "floor" :def
 [float?! ceiling# int?!] "ceiling" :def
-[hasIO? not! pop#] "pop" :def
-[hasIO? not! dup#] "dup" :def
+[hasIO? False eq?! pop#] "pop" :def
+[hasIO? False eq?! dup#] "dup" :def
 [swap#] "swap" :def
 [list?! $#] "$" :def
 
 [list?! dip#] "dip" :def
-["]" read#] "rbrac#" :def
-[null? not! unpackR# [rbrac#] dip# seq] "popr" :def
-[[list?! unpackR#] dip# seq [rbrac#] seq $#] "pushr" :def
-[[list?! unpackR#] dip# seq _ pushr $# [rbrac#] seq $# popr pop#] "." :def
+[null? not! unpackR# `] dip# seq] "popr" :def
+[[list?! unpackR#] dip# seq `] seq $#] "pushr" :def
+[[list?! unpackR#] dip# seq _ pushr $# `] seq $# popr pop#] "." :def
 
 [show# string?!] "show" :def
 [string?! read#] "read" :def
@@ -451,7 +450,8 @@
 [pop] "\\/" :def
 [swap pop] "\\/" :def
 
-[[not !] "deny" :def
+[!] "assert" :def
+[False eq?!] "deny" :def
 
 [list? deny False seq] "string?" :def
 [dup [char? nip] all seq] "string?" :def

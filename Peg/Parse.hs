@@ -37,16 +37,20 @@ whiteSpace = P.whiteSpace lexer
 charLiteral = P.charLiteral lexer
 stringLiteral = P.stringLiteral lexer
 
-word :: Parser String
-word = (:) <$> (letter <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#")
+word :: Parser Value
+word = W <$> ((:) <$> (letter <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#"))
 
-var :: Parser String
-var = char '?' *> many1 alphaNum
+var :: Parser Value
+var = V <$> (char '?' *> many1 alphaNum)
 
-symbol :: Parser String
-symbol = many1 (oneOf "!@#$%^&*()-_+=<>.~/?\\|") <|>
-         fmap (:[]) (oneOf "[]{};")
+symbol :: Parser Value
+symbol = W <$> (many1 (oneOf "!@#$%^&*()-_+=<>.~/?\\|") <|>
+                fmap (:[]) (oneOf "[]{};"))
 
+quote :: Parser Value
+quote = L . (:[]) <$> (char '`' *> value)
+
+number :: Parser Value
 number = do m <- optionMaybe (char '-')
             let f = maybe (either I F)
                           (const $ either (I . negate) (F . negate)) m
@@ -54,11 +58,12 @@ number = do m <- optionMaybe (char '-')
 
 value :: Parser Value
 value = try number        <|>
-        V <$> try var     <|>
-        W <$> try symbol  <|>
-        W <$> word        <|>
+        try var           <|>
+        try symbol        <|>
+        word              <|>
         C <$> charLiteral <|>
-        L . map C <$> stringLiteral
+        L . map C <$> stringLiteral <|>
+        quote
 
 comment = string "--" >> many (noneOf "\n")
 
@@ -81,7 +86,13 @@ showStack s = drop 1 $ loop s []
         loop (L [] : s) = loop s . (" [ ]" ++)
         loop (L x : s) = case toString (L x) of
                            Just str -> loop s . (' ':) . shows str
-                           Nothing -> loop s . (" [" ++) . loop x . (" ]" ++)
+                           Nothing -> case toQuote (L x) of
+                             Just str -> loop s . (' ':) . (str ++)
+                             Nothing -> loop s . (" [" ++) . loop x . (" ]" ++)
+
+toQuote (L [x]) | isList x = ('`':) <$> toQuote x
+                | otherwise = Just ('`' : showStack [x])
+toQuote _ = Nothing
 
 parseStack = parse stackExpr ""
 

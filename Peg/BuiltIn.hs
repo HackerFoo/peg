@@ -43,8 +43,6 @@ import qualified Data.Map as M
 import Control.Exception hiding (try)
 import Data.Typeable
 
-import Debug.Trace
-
 -------------------- Converters --------------------
 
 op2i_i f = do
@@ -126,9 +124,7 @@ unpackR = do
               appendStack l
 
 bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
-  where f l = do --force
-                 w <- popArg
-                 --force
+  where f l = do w <- popArg
                  appendStack l
                  force
                  pushArg w
@@ -151,6 +147,8 @@ hasIo _ = False
 -------------------- Built-ins --------------------
 
 builtins = wordMap [
+
+  -- numeric
   ("add_int#", op2i_i (+)),
   ("sub_int#", op2i_i (-)),
   ("mul_int#", op2i_i (*)),
@@ -195,6 +193,8 @@ builtins = wordMap [
   ("round#", opf_i round),
   ("floor#", opf_i floor),
   ("ceiling#", opf_i ceiling),
+
+  -- stack manipulation
   ("pop#", getList anything >> popArg >> force),
   ("swap#", do getList anything
                getList anything
@@ -218,9 +218,14 @@ builtins = wordMap [
             appendStack l
             force
             pushArg w),
+
+  -- control
   ("seq", do getList anything
              force
              pushStack =<< popArg),
+  ("!", getArg (== W "True") >> popArg >> force),
+
+  -- lists
   ("]", do PegState s a w n c <- get
            case gatherList 0 [] s of
              Left s' -> pushStack (W "]")
@@ -234,6 +239,8 @@ builtins = wordMap [
                pushStack x
                popArg >>= pushStack
                pushStack . W . show $ x == W "["),
+
+  -- checks
   ("int?", isType isInt),
   ("float?", isType isFloat),
   ("word?", isType $ isWord &&. (/= W "]")),
@@ -247,15 +254,8 @@ builtins = wordMap [
              y <- popArg
              guard . not $ isList x && isList y
              pushStack . W . show $ x == y),
-  ("!", getArg (== W "True") >> popArg >> force),
-  (":def", do getList isString
-              getList isList
-              L l <- popArg
-              Just s <- toString <$> popArg
-              bind s l),
-  (":undef", do getList isString
-                Just s <- toString <$> popArg
-                unbind s),
+
+  -- read/show
   ("show#", do getList anything
                x <- popArg
                pushStack . L . map C $ showStack [x]),
@@ -264,6 +264,8 @@ builtins = wordMap [
                let Right x = parseStack s
                appendStack x
                force),
+
+  -- I/O
   ("getChar#", do getArg isIo
                   pushStack =<< popArg
                   liftIO getChar >>= pushStack . C),
@@ -272,4 +274,14 @@ builtins = wordMap [
                   io <- popArg
                   C c <- popArg
                   liftIO $ putChar c
-                  pushStack io)]
+                  pushStack io),
+
+  -- word definition
+  (":def", do getList isString
+              getList isList
+              L l <- popArg
+              Just s <- toString <$> popArg
+              bind s l),
+  (":undef", do getList isString
+                Just s <- toString <$> popArg
+                unbind s)]
