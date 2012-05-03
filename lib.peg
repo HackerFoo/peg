@@ -1,6 +1,6 @@
 -- Builtins
 
-[dup True == [True] [dup False ==] ifte] "boolean?" :def
+[dup True eq? [True] [dup False eq?] ifte] "boolean?" :def
 [{int?;int?} types] "int2?" :def
 [{float?;int?} types] "float_int?" :def
 [{float?;float?} types] "float2?" :def
@@ -325,8 +325,8 @@
 
 -- ( a b == -> Boolean )
 [eq?] "==" :def
-[[popr] dip swap [popr] dip ==] "headEq" :def
-[headEq [==] [pop2 False] ifte] "==" :def
+[[popr] dip swap [popr] dip ==] "headEq?" :def
+[{list?; list?} types! [headEq? [==] [pop2 False] ifte] seq $] "==" :def
 [popnull null? nip] "==" :def
 [swap popnull null? nip] "==" :def
 
