@@ -15,6 +15,7 @@
     along with peg.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
 module Peg.BuiltIn where
 
 import Peg.Types
@@ -45,7 +46,7 @@ import Data.Typeable
 
 -------------------- Converters --------------------
 
-op cI nO f = do
+op' cI nO f = do
   mapM_ getArg $ reverse cI
   i <- replicateM (length cI) popArg
   if any isVar i
@@ -55,15 +56,28 @@ op cI nO f = do
             appendStack vs
     else do appendStack $ f i
 
-op2i_i f = op [isInt, isInt] 1 $ \[I x, I y] -> [I $ x `f` y]
-op2f_f f = op [isFloat, isFloat] 1 $ \[F x, F y] -> [F $ x `f` y]
-opfi_f f = op [isFloat, isInt] 1 $ \[F x, I y] -> [F $ x `f` y]
-opf_f f = op [isFloat] 1 $ \[F x] -> [F $ f x]
-opf_i f = op [isFloat] 1 $ \[F x] -> [I $ f x]
-opi_f f = op [isInt] 1 $ \[I x] -> [F $ f x]
-op2i_b f = op [isInt, isInt] 1 $ \[I x, I y] -> [W . show $ x `f` y]
-op2f_b f = op [isFloat, isFloat] 1 $ \[F x, F y] -> [W . show $ x `f` y]
-op2c_b f = op [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
+class Op f where
+  op :: f -> Peg ()
+
+instance Op (Integer -> Integer -> Integer) where op = op2i_i
+instance Op (Double -> Double -> Double) where op = op2f_f
+instance Op (Double -> Integer -> Double) where op = opfi_f
+instance Op (Double -> Double) where op = opf_f
+instance Op (Double -> Integer) where op = opf_i
+instance Op (Integer -> Double) where op = opi_f
+instance Op (Integer -> Integer -> Bool) where op = op2i_b
+instance Op (Double -> Double -> Bool) where op = op2f_b
+instance Op (Char -> Char -> Bool) where op = op2c_b
+
+op2i_i f = op' [isInt, isInt] 1 $ \[I x, I y] -> [I $ x `f` y]
+op2f_f f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [F $ x `f` y]
+opfi_f f = op' [isFloat, isInt] 1 $ \[F x, I y] -> [F $ x `f` y]
+opf_f f = op' [isFloat] 1 $ \[F x] -> [F $ f x]
+opf_i f = op' [isFloat] 1 $ \[F x] -> [I $ f x]
+opi_f f = op' [isInt] 1 $ \[I x] -> [F $ f x]
+op2i_b f = op' [isInt, isInt] 1 $ \[I x, I y] -> [W . show $ x `f` y]
+op2f_b f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [W . show $ x `f` y]
+op2c_b f = op' [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
 
 isType :: (Value -> Bool) -> Peg ()
 isType f = do
