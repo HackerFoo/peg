@@ -35,7 +35,7 @@ getList check = do
     then done
     else do
       x <- popStack
-      if check x
+      if isVar x || check x
         then return ()
         else if x == W "[" || x == W "]"
                then pushStack x >> done
@@ -49,12 +49,27 @@ getArg check = do
     then done
     else do
       x <- popStack
-      if check x
+      if isVar x || check x
         then return ()
         else if x == W "["
                then pushStack x >> done
                else mzero
       pushArg x
+
+a `dig` b = dig' a b []
+  where dig' a b c | a == 0 = c
+                   | otherwise = dig' d b (m:c)
+          where (d, m) = a `divMod` b
+
+letNum :: Int -> String
+letNum x | x <= 0 = "a"
+         | otherwise = map (toEnum . (+a)) . (`dig` 26) $ x
+  where a = fromEnum 'a'
+
+newVar :: Peg Value
+newVar = do PegState s a m n c <- get
+            put $ PegState s a m (n+1) c
+            return . V $ '_': letNum n
 
 pushStack x = modify (\(PegState s a m n c) -> PegState (x:s) a m n c)
 appendStack x = modify (\(PegState s a m n c) -> PegState (x++s) a m n c)
@@ -77,6 +92,10 @@ popArg = do PegState s (x:a) m n c <- get
             put $ PegState s a m n c
             return x
 
+peekArg :: Peg Value
+peekArg = do PegState s (x:a) m n c <- get
+             return x
+
 doWord w = do
   m <- psWords <$> get
   case w `M.lookup` m of
@@ -95,4 +114,5 @@ force = do
 minsert k x = M.insertWith (++) k [x]
 mlookup k = maybe [] id . M.lookup k
 
-addConstraint v f = modify (\(PegState s a m n c) -> PegState s a m n (minsert v f c))
+--addConstraint v f = modify (\(PegState s a m n c) -> PegState s a m n (minsert v f c))
+addConstraint x = modify $ \(PegState s a m n c) -> PegState s a m n (x:c)

@@ -37,7 +37,7 @@ data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Env,
                            psUniqueVarCounter :: Int,
-                           psConstraints :: Map String [Stack] }
+                           psConstraints :: [Stack] {-Map String [Stack]-} }
 type Peg = StateT PegState (LogicT IO)
 data PegException = PegException Stack Stack deriving (Show, Typeable)
 instance Exception PegException

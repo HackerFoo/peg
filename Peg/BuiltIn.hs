@@ -45,69 +45,36 @@ import Data.Typeable
 
 -------------------- Converters --------------------
 
-op2i_i f = do
-  getArg isInt
-  getArg isInt
-  I x <- popArg
-  I y <- popArg
-  pushStack $ I (x `f` y)
+op cI nO f = do
+  mapM_ getArg $ reverse cI
+  i <- replicateM (length cI) popArg
+  if any isVar i
+    then do w@(W _) <- peekArg
+            vs <- replicateM nO newVar
+            addConstraint [W "==", L vs, L (w:i)]
+            appendStack vs
+    else do appendStack $ f i
 
-op2f_f f = do
-  getArg isFloat
-  getArg isFloat
-  F x <- popArg
-  F y <- popArg
-  pushStack $ F (x `f` y)
-
-opfi_f f = do
-  getArg isInt
-  getArg isFloat
-  F x <- popArg
-  I y <- popArg
-  pushStack $ F (x `f` y)
-
-opf_f f = do
-  getArg isFloat
-  F x <- popArg
-  pushStack . F . f $ x
-
-opf_i f = do
-  getArg isFloat
-  F x <- popArg
-  pushStack . I . f $ x
-
-opi_f f = do
-  getArg isInt
-  I x <- popArg
-  pushStack . F . f $ x
-
-op2i_b f = do
-  getArg isInt
-  getArg isInt
-  I x <- popArg
-  I y <- popArg
-  pushStack . W . show $ x `f` y
-
-op2f_b f = do
-  getArg isFloat
-  getArg isFloat
-  F x <- popArg
-  F y <- popArg
-  pushStack . W . show $ x `f` y
-
-op2c_b f = do
-  getArg isChar
-  getArg isChar
-  C x <- popArg
-  C y <- popArg
-  pushStack . W . show $ x `f` y
+op2i_i f = op [isInt, isInt] 1 $ \[I x, I y] -> [I $ x `f` y]
+op2f_f f = op [isFloat, isFloat] 1 $ \[F x, F y] -> [F $ x `f` y]
+opfi_f f = op [isFloat, isInt] 1 $ \[F x, I y] -> [F $ x `f` y]
+opf_f f = op [isFloat] 1 $ \[F x] -> [F $ f x]
+opf_i f = op [isFloat] 1 $ \[F x] -> [I $ f x]
+opi_f f = op [isInt] 1 $ \[I x] -> [F $ f x]
+op2i_b f = op [isInt, isInt] 1 $ \[I x, I y] -> [W . show $ x `f` y]
+op2f_b f = op [isFloat, isFloat] 1 $ \[F x, F y] -> [W . show $ x `f` y]
+op2c_b f = op [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
 
 isType :: (Value -> Bool) -> Peg ()
 isType f = do
   getList $ anything ||. (== W "]")
   x <- popArg
   pushStack x
-  pushStack . W . show $ f x
+  if isVar x
+    then do w@(W _) <- peekArg
+            ((addConstraint [w, x] >> pushStack (W "True")) <|>
+             (addConstraint [W "not", w, x] >> pushStack (W "False")))
+    else pushStack . W . show $ f x
 
 -------------------- Helpers for builtins --------------------
 
@@ -122,6 +89,14 @@ unpackR = do
     W "]" -> return ()
     L l -> do pushStack $ W "["
               appendStack l
+    V v -> do pushStack $ W "["
+              appendStackVar v
+
+appendStackVar v = addConstraint [W "null?", V v] <|> do
+  x <- newVar
+  y <- newVar
+  addConstraint [W "==", L [x, y], L [W "popr", V v]]
+  appendStack [x, W "$#", y]
 
 bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
   where f l = do w <- popArg
@@ -213,17 +188,24 @@ builtins = wordMap [
               appendStack $ x : l),
   ("unpackR#", unpackR),
   ("$#", do getList isList
-            L l <- popArg
+            x <- popArg
             w <- popArg -- temporarily remove $ from the arg stack
-            appendStack l
-            force
+            case x of
+              L l -> appendStack l >> force
+              V v -> appendStackVar v
             pushArg w),
 
   -- control
   ("seq", do getList anything
              force
              pushStack =<< popArg),
-  ("!", getArg (== W "True") >> popArg >> force),
+  ("!", do getArg anything -- $ (== W "True") ||. isVar
+           x <- popArg
+           case x of
+             W "True" -> return ()
+             W "False" -> mzero
+             _ -> addConstraint . (x :) . psStack =<< get
+           force),
 
   -- lists
   ("]", do PegState s a w n c <- get
