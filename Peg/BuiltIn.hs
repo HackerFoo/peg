@@ -32,7 +32,7 @@ import qualified Data.Map as M
 -------------------- Converters --------------------
 
 withArgs cI nO f = do
-  mapM_ getArg $ reverse cI
+  mapM_ (getArg . (isVar ||.)) $ reverse cI
   i <- replicateM (length cI) popArg
   if any isVar i
     then do w@(W _) <- peekArg
@@ -68,13 +68,14 @@ op2c_b f = op' [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
 
 isType :: (Value -> Bool) -> Peg ()
 isType f = do
-  getList $ anything ||. (== W "]")
+  getList $ anything ||. (== W "]") ||. isVar
   x <- popArg
   pushStack x
   if isVar x
     then do w@(W _) <- peekArg
-            ((addConstraint [w, x] >> pushStack (W "True")) <|>
-             (addConstraint [W "not", w, x] >> pushStack (W "False")))
+            v <- newVar
+            addConstraint [W "==", v, w, x]
+            pushStack v
     else pushStack . W . show $ f x
 
 -------------------- Helpers for builtins --------------------
@@ -182,11 +183,15 @@ builtins = wordMap [
               x <- popArg
               pushStack x
               pushStack x),
-  ("dip#", do getList isList
+  ("dip#", do getList $ isList ||. isVar
               getList anything
               x <- popArg
-              L l <- popArg
-              appendStack $ x : l),
+              y <- popArg
+              case y of
+                L l -> appendStack l
+                V v -> appendStackVar v
+                _ -> mzero
+              pushStack x),
   ("unpackR#", unpackR),
   ("$#", do getList isList
             x <- popArg

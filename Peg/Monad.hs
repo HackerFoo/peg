@@ -35,7 +35,7 @@ getList check = do
     then done
     else do
       x <- popStack
-      if isVar x || check x
+      if check x
         then return ()
         else if x == W "[" || x == W "]"
                then pushStack x >> done
@@ -49,7 +49,7 @@ getArg check = do
     then done
     else do
       x <- popStack
-      if isVar x || check x
+      if check x
         then return ()
         else if x == W "["
                then pushStack x >> done
