@@ -23,30 +23,15 @@ import Peg.Monad
 import Peg.Parse
 
 import Control.Applicative
-import Control.Monad
-import Text.Parsec hiding ((<|>), many, optional)
-import Text.Parsec.String
-import qualified Text.Parsec.Token as P
-import Text.Parsec.Language (haskellDef)
 import Data.List
-import Data.Ord
-import System.Console.Haskeline hiding (throwIO, handle)
-import System.Environment
-import System.FilePath
-import System.IO
-import Data.Either
 import Control.Monad.Logic
 import Control.Monad.State
-import Data.Set (Set)
-import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
-import Control.Exception hiding (try)
-import Data.Typeable
 
 -------------------- Converters --------------------
 
-op' cI nO f = do
+withArgs cI nO f = do
   mapM_ getArg $ reverse cI
   i <- replicateM (length cI) popArg
   if any isVar i
@@ -54,7 +39,9 @@ op' cI nO f = do
             vs <- replicateM nO newVar
             addConstraint [W "==", L vs, L (w:i)]
             appendStack vs
-    else do appendStack $ f i
+    else f i
+
+op' cI nO f = withArgs cI nO (appendStack . f)
 
 class Op f where
   op :: f -> Peg ()
@@ -213,12 +200,9 @@ builtins = wordMap [
   ("seq", do getList anything
              force
              pushStack =<< popArg),
-  ("!", do getArg anything -- $ (== W "True") ||. isVar
+  ("!", do getArg $ (== W "True") ||. isVar
            x <- popArg
-           case x of
-             W "True" -> return ()
-             W "False" -> mzero
-             _ -> addConstraint . (x :) . psStack =<< get
+           when (isVar x) $ addConstraint [x]
            force),
 
   -- lists
@@ -244,12 +228,9 @@ builtins = wordMap [
   ("char?", isType isChar),
   ("io?", isType isIo),
   ("hasIO?", isType hasIo),
-  ("eq?", do getList anything
-             getList anything
-             x <- popArg
-             y <- popArg
-             guard . not $ isList x && isList y
-             pushStack . W . show $ x == y),
+  ("eq?", withArgs [anything, anything] 1 $ \[x, y] -> do
+            guard . not $ isList x && isList y
+            pushStack . W . show $ x == y),
 
   -- read/show
   ("show#", do getList anything

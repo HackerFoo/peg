@@ -43,7 +43,7 @@ import Debug.Trace
 evalStack (s, m) = observeManyT 8 $ do
   PegState s _ m _ c <- execStateT force $ PegState s [] m 0 [] --M.empty
   if {-M.size c > 0 -} not (null c)
-    then trace (show $ {-M.toList c-} map showStack c) $ return (s, m)
+    then trace ({-M.toList c-} concatMap (('\n':) . showStack) (reverse c)) $ return (s, m)
     else return (s, m)
 
 hGetLines h = do

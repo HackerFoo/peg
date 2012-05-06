@@ -62,11 +62,11 @@
 [list?! $#] "$" :def
 
 [list?! dip#] "dip" :def
-[null? not! unpackR# `] dip# seq] "popr" :def
+[null? False eq?! unpackR# `] dip# seq] "popr" :def
 [[list?! unpackR#] dip# seq `] seq $#] "pushr" :def
 [[list?! unpackR#] dip# seq _ pushr $# `] seq $# popr pop#] "." :def
 
-[show# string?!] "show" :def
+[hasIO? False eq?! show# string?!] "show" :def
 [string?! read#] "read" :def
 [io?! getChar# {io?;char?} types!] "getChar" :def
 [{io?;char?} types! putChar# io?!] "putChar" :def

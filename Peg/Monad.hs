@@ -25,7 +25,7 @@ import Control.Applicative
 import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
-import Control.Exception hiding (try)
+import Control.Exception
 
 -- | pop an argument from the stack, push onto argument stack
 getList check = do
