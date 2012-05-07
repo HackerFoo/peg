@@ -36,7 +36,6 @@ import Control.Monad.State
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
-import Control.Exception hiding (try)
 
 import Debug.Trace
 
@@ -60,7 +59,7 @@ main = do
   m <- foldM (\m f -> do
           l <- getLinesFromFile f
           load [] m l) builtins files
-  runInputT defaultSettings $ evalLoop (Right []) m
+  runInputT defaultSettings $ evalLoop [] m
 
 load :: Stack
   -> Env
@@ -70,37 +69,29 @@ load s m [] = return m
 load s m (input:r) =
   case parseStack input of
     Left e -> print e >> return m
-    Right s -> handle (\(_ :: PegException) -> load s m r) $ do
-      (s', m') : _ <- evalStack (s, m)
-      load s' m' r
-
--- I/O ideas
--- I/O token: dup I/O --> spawn thread, pop I/O --> kill thread
--- x0 x1 x2      IO x3 x4  IO x5
--- | main thread | thread 0 | thread 1 ...
--- .. IO [ x ] dip
---   <------|
--- send to thread n-1
+    Right s -> do
+      x <- evalStack (s, m)
+      case x of
+        (s', m') : _ -> load s' m' r
+        [] -> load s m r
 
 makeIOReal = map (\x -> if x == W "IO" then Io else x)
 
-evalLoop :: Either (Stack, Stack) Stack -> Env -> InputT IO ()
+evalLoop :: Stack -> Env -> InputT IO ()
 evalLoop p m = do
   let text = case p of
-               Left (s, a) -> (showStack s, ' ' : showStack (reverse a))
-               Right [] -> ("", "")
-               Right s -> (showStack s ++ " ", "")
-  minput <- getInputLineWithInitial ": " text
+               [] -> ""
+               s -> showStack s ++ " "
+  minput <- getInputLineWithInitial ": " (text, "")
   case minput of
     Nothing -> return ()
     Just "" -> return ()
     Just input -> case parseStack input of
       Left e -> outputStrLn (show e) >> evalLoop p m
       Right s -> do
-        x' <- liftIO . handle (\(PegException s a) -> return (Left (s, a))) $ Right <$> evalStack (makeIOReal s, m)
+        x' <- liftIO $ evalStack (makeIOReal s, m)
         case x' of
-          Left s' -> evalLoop (Left s') m
-          Right [] -> evalLoop (Right [W "no"]) m
-          Right ((s',m'):r) -> do
+          [] -> evalLoop s m
+          ((s',m'):r) -> do
             mapM_ (outputStrLn . showStack . fst) r
-            evalLoop (Right s') m'
+            evalLoop s' m'

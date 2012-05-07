@@ -16,7 +16,6 @@
     You should have received a copy of the GNU General Public License
     along with peg.  If not, see <http://www.gnu.org/licenses/>.
 -}
-{-# LANGUAGE DeriveDataTypeable #-}
 module Peg.Types where
 
 import Control.Applicative
@@ -27,8 +26,6 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
-import Control.Exception hiding (try)
-import Data.Typeable
 
 type Stack = [Value]
 type Env = Map String (Peg ())
@@ -39,8 +36,6 @@ data PegState = PegState { psStack :: Stack,
                            psUniqueVarCounter :: Int,
                            psConstraints :: [Stack] {-Map String [Stack]-} }
 type Peg = StateT PegState (LogicT IO)
-data PegException = PegException Stack Stack deriving (Show, Typeable)
-instance Exception PegException
 data Rule = Rule { getRule :: Stack -> Peg Stack }
 data Value = F Double
            | I Integer

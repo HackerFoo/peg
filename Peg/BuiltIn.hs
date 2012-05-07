@@ -68,7 +68,7 @@ op2c_b f = op' [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
 
 isType :: (Value -> Bool) -> Peg ()
 isType f = do
-  getList $ anything ||. (== W "]") ||. isVar
+  getArg $ anything ||. (== W "]") ||. isVar
   x <- popArg
   pushStack x
   if isVar x
@@ -85,7 +85,7 @@ anything (W "[") = False
 anything _ = True
 
 unpackR = do
-  getList $ isList ||. (== W "]")
+  getArg $ isList ||. (== W "]")
   x <- popArg
   case x of
     W "]" -> return ()
@@ -99,6 +99,20 @@ appendStackVar v = addConstraint [W "null?", V v] <|> do
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
   appendStack [x, W "$#", y]
+
+callVar v = eat v <|> do
+  x <- newVar
+  y <- newVar
+  addConstraint [W "==", L [x, y], L [W "popr", V v]]
+  appendStack [x, W "$#", y]
+
+eat v = addConstraint [W "null?", V v] <|> do
+  getArg (anything &&. (not . hasIo))
+  popArg
+  x@(V v') <- newVar
+  addConstraint [W "==", L [W "pop", x], L [W "popr'", V v]]
+  force
+  eat v'
 
 bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
   where f l = do w <- popArg
@@ -172,19 +186,19 @@ builtins = wordMap [
   ("ceiling#", opf_i ceiling),
 
   -- stack manipulation
-  ("pop#", getList anything >> popArg >> force),
-  ("swap#", do getList anything
-               getList anything
+  ("pop#", getArg anything >> popArg >> force),
+  ("swap#", do getArg anything
+               getArg anything
                x <- popArg
                y <- popArg
                pushStack y
                pushStack x),
-  ("dup#", do getList anything
+  ("dup#", do getArg anything
               x <- popArg
               pushStack x
               pushStack x),
-  ("dip#", do getList $ isList ||. isVar
-              getList anything
+  ("dip#", do getArg $ isList ||. isVar
+              getArg $ anything
               x <- popArg
               y <- popArg
               case y of
@@ -193,16 +207,16 @@ builtins = wordMap [
                 _ -> mzero
               pushStack x),
   ("unpackR#", unpackR),
-  ("$#", do getList isList
+  ("$#", do getArg isList
             x <- popArg
             w <- popArg -- temporarily remove $ from the arg stack
             case x of
               L l -> appendStack l >> force
-              V v -> appendStackVar v
+              V v -> callVar v 
             pushArg w),
 
   -- control
-  ("seq", do getList anything
+  ("seq", do getArg anything
              force
              pushStack =<< popArg),
   ("!", do getArg $ (== W "True") ||. isVar
@@ -219,7 +233,7 @@ builtins = wordMap [
                pushStack . L . reverse $ l),
   ("null?", do unpackR
                pushArg $ W "]"
-               getList $ const True
+               getArg $ const True
                x <- popArg
                pushStack x
                popArg >>= pushStack
@@ -238,10 +252,10 @@ builtins = wordMap [
             pushStack . W . show $ x == y),
 
   -- read/show
-  ("show#", do getList anything
+  ("show#", do getArg anything
                x <- popArg
                pushStack . L . map C $ showStack [x]),
-  ("read#", do getList isString
+  ("read#", do getArg isString
                Just s <- toString <$> popArg
                let Right x = parseStack s
                appendStack x
@@ -259,11 +273,11 @@ builtins = wordMap [
                   pushStack io),
 
   -- word definition
-  (":def", do getList isString
-              getList isList
+  (":def", do getArg isString
+              getArg isList
               L l <- popArg
               Just s <- toString <$> popArg
               bind s l),
-  (":undef", do getList isString
+  (":undef", do getArg isString
                 Just s <- toString <$> popArg
                 unbind s)]

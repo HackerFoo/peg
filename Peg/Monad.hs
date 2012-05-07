@@ -28,33 +28,12 @@ import qualified Data.Map as M
 import Control.Exception
 
 -- | pop an argument from the stack, push onto argument stack
-getList check = do
-  force
-  em <- emptyStack
-  if em
-    then done
-    else do
-      x <- popStack
-      if check x
-        then return ()
-        else if x == W "[" || x == W "]"
-               then pushStack x >> done
-               else mzero
-      pushArg x
-
 getArg check = do
   force
-  em <- emptyStack
-  if em
-    then done
-    else do
-      x <- popStack
-      if check x
-        then return ()
-        else if x == W "["
-               then pushStack x >> done
-               else mzero
-      pushArg x
+  guard . not =<< emptyStack
+  x <- popStack
+  guard $ check x
+  pushArg x
 
 a `dig` b = dig' a b []
   where dig' a b c | a == 0 = c
@@ -79,11 +58,6 @@ popStack = do PegState (x:s) a m n c <- get
               put $ PegState s a m n c
               return x
 emptyStack = null . psStack <$> get
-
--- | can't go any further, bail
-done = do
-  st <- get
-  liftIO . throwIO $ PegException (psStack st) (psArgStack st)
 
 pushArg x = modify (\(PegState s a m n c) -> PegState s (x:a) m n c)
 
