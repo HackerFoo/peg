@@ -85,7 +85,7 @@ anything (W "[") = False
 anything _ = True
 
 unpackR = do
-  getArg $ isList ||. (== W "]")
+  getArg $ isList ||. (== W "]") ||. isVar
   x <- popArg
   case x of
     W "]" -> return ()
@@ -100,12 +100,17 @@ appendStackVar v = addConstraint [W "null?", V v] <|> do
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
   appendStack [x, W "$#", y]
 
-callVar v = eat v <|> do
+-- A (A -> B) -> B
+-- replaces stack with entirely new stack generated inductively on demand
+callVar v = {-return () <|>-}  do
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
-  appendStack [x, W "$#", y]
-
+  s <- getStack
+  case gatherList 0 [] s of
+    Left _ -> setStack [x, W "$#", y]
+    Right (_, s) -> setStack $ x : W "$#" : y : W "[" : s
+{-
 eat v = addConstraint [W "null?", V v] <|> do
   getArg (anything &&. (not . hasIo))
   popArg
@@ -113,7 +118,7 @@ eat v = addConstraint [W "null?", V v] <|> do
   addConstraint [W "==", L [W "pop", x], L [W "popr'", V v]]
   force
   eat v'
-
+-}
 bind nm l = modify $ \(PegState s a w n c) -> PegState s a (M.insertWith interleave nm (f l) w) n c
   where f l = do w <- popArg
                  appendStack l
@@ -203,11 +208,11 @@ builtins = wordMap [
               y <- popArg
               case y of
                 L l -> appendStack l
-                V v -> appendStackVar v
+                V v -> callVar v
                 _ -> mzero
               pushStack x),
   ("unpackR#", unpackR),
-  ("$#", do getArg isList
+  ("$#", do getArg $ isList ||. isVar
             x <- popArg
             w <- popArg -- temporarily remove $ from the arg stack
             case x of
@@ -225,12 +230,10 @@ builtins = wordMap [
            force),
 
   -- lists
-  ("]", do PegState s a w n c <- get
+  ("]", do s <- getStack
            case gatherList 0 [] s of
              Left s' -> pushStack (W "]")
-             Right (l, s') -> do
-               put $ PegState s' a w n c
-               pushStack . L . reverse $ l),
+             Right (l, s') -> setStack . (:s') . L . reverse $ l),
   ("null?", do unpackR
                pushArg $ W "]"
                getArg $ const True

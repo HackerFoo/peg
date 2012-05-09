@@ -41,7 +41,7 @@ word :: Parser Value
 word = W <$> ((:) <$> (letter <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#"))
 
 var :: Parser Value
-var = V <$> (char '?' *> many1 alphaNum)
+var = V <$> (char '?' *> many1 (alphaNum <|> char '_'))
 
 symbol :: Parser Value
 symbol = W <$> (many1 (oneOf "!@#$%^&*()-_+=<>.~/?\\|") <|>

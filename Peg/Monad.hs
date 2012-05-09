@@ -59,6 +59,11 @@ popStack = do PegState (x:s) a m n c <- get
               return x
 emptyStack = null . psStack <$> get
 
+setStack s = modify (\(PegState _ a m n c) -> PegState s a m n c)
+
+getStack :: Peg Stack
+getStack = psStack <$> get
+
 pushArg x = modify (\(PegState s a m n c) -> PegState s (x:a) m n c)
 
 popArg :: Peg Value
