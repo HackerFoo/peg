@@ -39,11 +39,9 @@ import qualified Data.Map as M
 
 import Debug.Trace
 
-evalStack (s, m) = observeManyT 8 $ do
-  PegState s _ m _ c <- execStateT force $ PegState s [] m 0 [] --M.empty
-  if {-M.size c > 0 -} not (null c)
-    then trace ({-M.toList c-} concatMap (('\n':) . showStack) (reverse c)) $ return (s, m)
-    else return (s, m)
+evalStack (s, m, c) = observeManyT 3 $ do
+  PegState s _ m _ c <- execStateT force $ PegState s [] m 0 c
+  return (s, m, c)
 
 hGetLines h = do
   e <- hIsEOF h
@@ -70,28 +68,34 @@ load s m (input:r) =
   case parseStack input of
     Left e -> print e >> return m
     Right s -> do
-      x <- evalStack (s, m)
+      x <- evalStack (s, m, [])
       case x of
-        (s', m') : _ -> load s' m' r
+        (s', m', _) : _ -> load s' m' r
         [] -> load s m r
 
 makeIOReal = map (\x -> if x == W "IO" then Io else x)
 
 evalLoop :: Stack -> Env -> InputT IO ()
 evalLoop p m = do
-  let text = case p of
-               [] -> ""
-               s -> showStack s ++ " "
-  minput <- getInputLineWithInitial ": " (text, "")
-  case minput of
-    Nothing -> return ()
-    Just "" -> return ()
-    Just input -> case parseStack input of
-      Left e -> outputStrLn (show e) >> evalLoop p m
-      Right s -> do
-        x' <- liftIO $ evalStack (makeIOReal s, m)
-        case x' of
-          [] -> evalLoop s m
-          ((s',m'):r) -> do
-            mapM_ (outputStrLn . showStack . fst) r
-            evalLoop s' m'
+    let text = case p of
+                 [] -> ""
+                 s -> showStack s ++ " "
+    minput <- getInputLineWithInitial ": " (text, "")
+    case minput of
+      Nothing -> return ()
+      Just "" -> return ()
+      Just input -> case parseStack input of
+        Left e -> outputStrLn (show e) >> evalLoop p m
+        Right s -> do
+          x' <- liftIO $ evalStack (makeIOReal s, m, [])
+          case x' of
+            [] -> evalLoop s m
+            ((s',m',c'):r) -> do
+              printConstraints c'
+              mapM_ printAlt r
+              evalLoop s' m'
+  where printConstraints c = 
+          mapM_ (outputStrLn . ("= "++) . showStack) $ reverse c
+        printAlt (s,_,c) = do
+          outputStrLn . ("| "++) . showStack $ s
+          printConstraints c

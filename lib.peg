@@ -234,7 +234,7 @@
 
 -- get nth item from a stack
 -- ( [A] Int !! -> a )
-[dup 0 <= [pop popr swap pop] [1- [tail] dip !!] ifte] "!!" :def
+[dup 0 <= [pop popr swap pop] [1- [tail] dip seq !!] ifte] "!!" :def
 
 -- drop n stack items
 -- ( [A] Int drop -> [A] )

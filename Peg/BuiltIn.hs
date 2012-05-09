@@ -94,7 +94,7 @@ unpackR = do
     V v -> do pushStack $ W "["
               appendStackVar v
 
-appendStackVar v = addConstraint [W "null?", V v] <|> do
+appendStackVar v = addConstraint [W "null?", V v] `interleave` do
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
@@ -102,7 +102,7 @@ appendStackVar v = addConstraint [W "null?", V v] <|> do
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
-callVar v = {-return () <|>-}  do
+callVar v = addConstraint [W "null?", V v] `interleave`  do
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]

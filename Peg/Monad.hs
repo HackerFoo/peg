@@ -40,9 +40,14 @@ a `dig` b = dig' a b []
                    | otherwise = dig' d b (m:c)
           where (d, m) = a `divMod` b
 
+a `ldig` b = dig' a b []
+  where dig' a b c | a == 0 = c
+                   | otherwise = dig' d b (m:c)
+          where (d, m) = (a-1) `divMod` b
+
 letNum :: Int -> String
 letNum x | x <= 0 = "a"
-         | otherwise = map (toEnum . (+a)) . (`dig` 26) $ x
+         | otherwise = map (toEnum . (+a)) . (`ldig` 26) $ x + 1
   where a = fromEnum 'a'
 
 newVar :: Peg Value
