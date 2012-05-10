@@ -103,4 +103,4 @@ probe s x = trace (s ++ show x) x
 traceStack :: Peg ()
 traceStack = do
   s <- psStack <$> get
-  trace (showStack s) $ return ()
+  when (not $ null s) . trace (showStack s) $ return ()

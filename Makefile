@@ -1,11 +1,20 @@
+SOURCE=Peg.hs Peg/*.hs *.peg Makefile README.md
+
 peg: Peg.hs Peg/*.hs
 	ghc --make -DMAIN -o peg -O -ltinfo Peg.hs
+
+peg-debug: Peg.hs Peg/*.hs
+	ghc --make -DMAIN -DDEBUG -o peg-debug -O -ltinfo Peg.hs
 
 .PHONY: clean
 
 clean:
-	rm -f *.o Peg/*.o *.hi Peg/*.hi peg; rm -rf dist
+	rm -f *.o Peg/*.o *.hi Peg/*.hi peg peg-debug; rm -rf dist
 
-.PHONY: edit
-edit:
-	vim Peg.hs Peg/*.hs *.peg Makefile README.md
+.PHONY: vim
+vim:
+	vim $(SOURCE)
+
+.PHONY: gvim
+gvim:
+	gvim $(SOURCE) &

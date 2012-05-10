@@ -16,6 +16,7 @@
     along with peg.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+{-# LANGUAGE CPP #-}
 module Peg.Monad where
 
 import Peg.Types
@@ -52,6 +53,9 @@ letNum x | x <= 0 = "a"
 
 newVar :: Peg Value
 newVar = do PegState s a m n c <- get
+#ifdef DEBUG
+            when (n > 25) mzero
+#endif
             put $ PegState s a m (n+1) c
             return . V $ '_': letNum n
 
@@ -89,7 +93,10 @@ doWord w = do
 force = do
   st <- get
   case psStack st of
-    (W w : _) -> popStack >> doWord w -- >> traceStack
+    (W w : _) -> popStack >> doWord w
+#ifdef DEBUG
+      >> traceStack
+#endif
     _ -> return ()
 
 (f ||. g) x = f x || g x
