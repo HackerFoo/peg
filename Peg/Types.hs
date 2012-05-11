@@ -33,6 +33,7 @@ type Env = Map String (Peg ())
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Env,
+                           psDepth :: Int,
                            psUniqueVarCounter :: Int,
                            psConstraints :: [Stack] {-Map String [Stack]-} }
 type Peg = StateT PegState (LogicT IO)

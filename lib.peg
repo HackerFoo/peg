@@ -220,8 +220,8 @@
 [[[] swap pushr] dip .] "pushl" :def
 
 -- ( a [B] (a b -> a) foldl -> a )
---[[popr] dip dup [foldl] pushl dip2 $] "foldl" :def
-[[popr] dip dup [foldl] pushl dip2 [seq] dip seq $] "foldl" :def
+[[popr] dip dup [foldl] pushl dip2 $] "foldl" :def
+--[[popr] dip dup [foldl] pushl dip2 [seq] dip seq $] "foldl" :def
 [pop popnull] "foldl" :def
 
 -- ( [A] (a a -> a) foldl1 -> a )

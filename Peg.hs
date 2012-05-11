@@ -40,7 +40,7 @@ import qualified Data.Map as M
 import Debug.Trace
 
 evalStack (s, m, c) = observeManyT 3 $ do
-  PegState s _ m _ c <- execStateT force $ PegState s [] m 0 c
+  PegState s _ m _ _ c <- execStateT force $ PegState s [] m 50 0 c
   return (s, m, c)
 
 hGetLines h = do
