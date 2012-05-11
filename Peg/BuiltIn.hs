@@ -95,6 +95,7 @@ unpackR = do
               appendStackVar v
 
 appendStackVar v = addConstraint [W "null?", V v] `interleave` do
+  depthLimit
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
@@ -103,6 +104,7 @@ appendStackVar v = addConstraint [W "null?", V v] `interleave` do
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
 callVar v = addConstraint [W "null?", V v] `interleave`  do
+  depthLimit
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
@@ -119,7 +121,8 @@ eat v = addConstraint [W "null?", V v] <|> do
   force
   eat v'
 -}
-bind nm l = modify $ \(PegState s a w d n c) -> PegState s a (M.insertWith interleave nm (f l) w) d n c
+bind nm l = modify $ \(PegState s a w d n c) ->
+              PegState s a (minsert nm (f l) w) d n c
   where f l = do w <- popArg
                  appendStack l
                  force
@@ -134,7 +137,7 @@ gatherList n l (w@(W "[") : s)
 gatherList n l (w:s) = gatherList n (w:l) s
 gatherList n l [] = Left l
 
-wordMap = foldl' (flip (uncurry $ M.insertWith mplus)) M.empty
+wordMap = foldl' (flip (uncurry minsert)) M.empty
 
 hasIo (L l) = any hasIo l
 hasIo Io = True

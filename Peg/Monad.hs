@@ -23,6 +23,7 @@ import Peg.Types
 import Peg.Parse (traceStack)
 
 import Control.Applicative
+import Control.Monad.Logic
 import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -61,8 +62,9 @@ newVar = do PegState s a m d n c <- get
 
 depthLimit :: Peg ()
 depthLimit = do PegState s a m d n c <- get
-                guard (d >= 1)
-                put $ PegState s a m (d-1) n c
+                when (d >= 0) $ do
+                  guard (d /= 0)
+                  put $ PegState s a m (d-1) n c
 
 pushStack x = modify (\(PegState s a m d n c) -> PegState (x:s) a m d n c)
 appendStack x = modify (\(PegState s a m d n c) -> PegState (x++s) a m d n c)
@@ -91,9 +93,13 @@ peekArg = do PegState s (x:a) m d n c <- get
 
 doWord w = do
   m <- psWords <$> get
+  pushArg (W w)
   case w `M.lookup` m of
     Nothing -> pushStack (W w)
-    Just f -> pushArg (W w) >> f >> popArg >> return ()
+    Just [x] -> x 
+    Just x -> depthLimit >> foldr interleave mzero x
+  popArg
+  return ()
 
 force = do
   st <- get

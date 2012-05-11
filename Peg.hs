@@ -39,8 +39,16 @@ import qualified Data.Map as M
 
 import Debug.Trace
 
-evalStack (s, m, c) = observeManyT 3 $ do
-  PegState s _ m _ _ c <- execStateT force $ PegState s [] m 50 0 c
+-- crude iterative deepening
+evalStack st = loop . take 8 $ iterate (*16) 256
+  where loop [] = evalStackD st 5 (-1)
+        loop (d:ds) = do r <- evalStackD st 5 d
+                         if length r < 5
+                           then loop ds
+                           else return r
+                    
+evalStackD (s, m, c) n d = observeManyT n $ do
+  PegState s _ m _ _ c <- execStateT force $ PegState s [] m d 0 c
   return (s, m, c)
 
 hGetLines h = do
@@ -94,8 +102,8 @@ evalLoop p m = do
               printConstraints c'
               mapM_ printAlt r
               evalLoop s' m'
-  where printConstraints c = 
-          mapM_ (outputStrLn . ("= "++) . showStack) $ reverse c
+  where printConstraints c = return ()
+          --mapM_ (outputStrLn . ("= "++) . showStack) $ reverse c
         printAlt (s,_,c) = do
           outputStrLn . ("| "++) . showStack $ s
           printConstraints c

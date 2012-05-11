@@ -28,7 +28,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 
 type Stack = [Value]
-type Env = Map String (Peg ())
+type Env = Map String [Peg ()]
 --data Constraint = IsEqualTo Value deriving (Show)
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
