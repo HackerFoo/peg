@@ -37,18 +37,28 @@ import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 
+import Data.List
+
 import Debug.Trace
+import System.IO.Unsafe
 
 -- crude iterative deepening
-evalStack st = loop . take 8 $ iterate (*16) 256
-  where loop [] = evalStackD st 5 (-1)
-        loop (d:ds) = do r <- evalStackD st 5 d
-                         if length r < 5
-                           then loop ds
-                           else return r
+
+depthInc :: Int
+depthInc = 50
+
+evalStack st = loop 0
+  where loop d = do resetMore
+                    r <- evalStackD st d
+                    m <- isThereMore
+                    if m
+                      then do r' <- unsafeInterleaveIO $ loop (d+depthInc)
+                              return $ r ++ r'
+                      else return r
                     
-evalStackD (s, m, c) n d = observeManyT n $ do
-  PegState s _ m _ _ c <- execStateT force $ PegState s [] m d 0 c
+evalStackD (s, m, c) d = observeAllT $ do
+  PegState s _ m d' _ c <- execStateT force $ PegState s [] m d 0 c
+  guard $ d' < depthInc
   return (s, m, c)
 
 hGetLines h = do
@@ -96,7 +106,7 @@ evalLoop p m = do
         Left e -> outputStrLn (show e) >> evalLoop p m
         Right s -> do
           x' <- liftIO $ evalStack (makeIOReal s, m, [])
-          case x' of
+          case take 5 (nubBy (\(a,_,_) (b,_,_) -> a == b) x') of
             [] -> evalLoop s m
             ((s',m',c'):r) -> do
               printConstraints c'

@@ -29,6 +29,22 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Control.Exception
 
+import Data.IORef
+import System.IO.Unsafe
+
+dirtyIORef :: IORef Bool
+dirtyIORef = unsafePerformIO $ newIORef False
+
+resetMore :: IO ()
+resetMore = writeIORef dirtyIORef False
+
+isThereMore :: IO Bool
+isThereMore = readIORef dirtyIORef
+
+
+theresMore :: Peg ()
+theresMore = liftIO (writeIORef dirtyIORef True) >> mzero
+
 -- | pop an argument from the stack, push onto argument stack
 getArg check = do
   force
@@ -63,8 +79,9 @@ newVar = do PegState s a m d n c <- get
 depthLimit :: Peg ()
 depthLimit = do PegState s a m d n c <- get
                 when (d >= 0) $ do
-                  guard (d /= 0)
-                  put $ PegState s a m (d-1) n c
+                  if d == 0
+                    then theresMore
+                    else put $ PegState s a m (d-1) n c
 
 pushStack x = modify (\(PegState s a m d n c) -> PegState (x:s) a m d n c)
 appendStack x = modify (\(PegState s a m d n c) -> PegState (x++s) a m d n c)
