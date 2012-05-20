@@ -4,7 +4,9 @@ module Search where
 import Control.Monad
 import Control.Monad.Trans
 import System.IO
+import Control.Monad.Identity
 
+{-
 data Tree a = Node (Tree a) (Tree a) | Leaf a | Empty deriving (Show)
 
 instance Functor Tree where
@@ -19,102 +21,122 @@ instance Monad Tree where
 
 instance MonadPlus Tree where
   mzero = Empty
-  mplus = Node
+  mplus = Node 
+-}
 
-newtype TreeT m a = TreeT { runTreeT :: m (Tree a) }
+type Tree = TreeT Identity
+
+newtype TreeT m a = TreeT { runTreeT :: m (TreeT' m a) }
+data TreeT' m a = NodeT (TreeT m a) (TreeT m a) | LeafT a | EmptyT
 
 instance (Functor m) => Functor (TreeT m) where
-  fmap f mt = TreeT . (fmap.fmap) f $ runTreeT mt
+  fmap f mt = TreeT . fmap f' $ runTreeT mt
+    where f' EmptyT = EmptyT
+          f' (LeafT x) = LeafT (f x)
+          f' (NodeT mx my) = NodeT (fmap f mx) (fmap f my)
 
 instance (Monad m) => Monad (TreeT m) where
-  return = TreeT . return . Leaf
+  return = TreeT . return . LeafT
   mt >>= f = TreeT $ do
                t <- runTreeT mt
-               loop t
-    where loop Empty = return Empty
-          loop (Leaf x) = runTreeT (f x)
-          loop (Node x y) = do x' <- loop x
-                               y' <- loop y
-                               return $ Node x' y'
+               case t of
+                 EmptyT -> return EmptyT
+                 LeafT x -> runTreeT (f x)
+                 NodeT mx my -> return $ NodeT (mx >>= f) (my >>= f)
 
 instance (Monad m) => MonadPlus (TreeT m) where
-  mzero = TreeT . return $ Empty
-  mx `mplus` my = TreeT $ do x <- runTreeT mx
-                             y <- runTreeT my
-                             return $ Node x y
+  mzero = TreeT . return $ EmptyT
+  mx `mplus` my = TreeT . return $ NodeT mx my
 
 instance MonadIO (TreeT IO) where
   liftIO m = TreeT $ do x <- m
-                        return (Leaf x)
+                        return (LeafT x)
+               
+instance MonadTrans TreeT where
+  lift m = TreeT $ do x <- m
+                      return (LeafT x)
                
 data Queue a = Queue [a] ([a] -> [a])
 
-emptyQ = Queue [] id
+emptyQueue = Queue [] id
 
-pushQ x (Queue l f) = Queue l (f . (x:))
+pushQueue x (Queue l f) = Queue l (f . (x:))
 
-popQ = popQ' . forceQ
+popQueue = popQ' . forceQueue
   where popQ' (Queue (x:l) f) = (x, Queue l f)
         popQ' (Queue [] f) = error "popQ: empty queue"
 
-forceQ (Queue [] f) = Queue (f []) id
-forceQ q = q
+forceQueue (Queue [] f) = Queue (f []) id
+forceQueue q = q
 
-listQ (Queue l f) = l ++ f []
+listQueue (Queue l f) = l ++ f []
 
-nullQ = nullQ' . forceQ
+nullQueue = nullQ' . forceQueue
   where nullQ' (Queue l _) = null l
 
-data QueueM q r a = QueueM { runQueueM :: Queue q ->
-                                          ((a, Queue q) -> (Maybe r, Queue q)) ->
-                                          (Maybe r, Queue q) }
+data QueueT q r m a = QueueT {
+  runQueueT :: Queue q ->
+               ((a, Queue q) -> m (Maybe r, Queue q)) ->
+               m (Maybe r, Queue q)
+}
 
-instance Functor (QueueM q r) where
-  fmap f (QueueM qf) = QueueM $ \q k -> qf q (k . (\(x, q) -> (f x, q)))
+instance Functor (QueueT q r m) where
+  fmap f (QueueT qf) = QueueT $ \q k -> qf q (k . (\(x, q) -> (f x, q)))
 
-instance Monad (QueueM q r) where
-  return x = QueueM $ \q k -> k (x, q)
-  QueueM qf >>= f = QueueM $ \q k ->
+instance Monad (QueueT q r m) where
+  return x = QueueT $ \q k -> k (x, q)
+  QueueT qf >>= f = QueueT $ \q k ->
                       qf q $ \(x, q') ->
-                        runQueueM (f x) q' k
+                        runQueueT (f x) q' k
 
-pushQM :: q -> QueueM q r ()
-pushQM x = QueueM $ \q k -> k ((), pushQ x q)
+instance MonadIO (QueueT q r IO) where
+  liftIO m = QueueT $ \q k -> do x <- m
+                                 k (x, q)
 
-popQM :: QueueM q r q
-popQM = QueueM $ \q k -> if nullQ q
-                           then (Nothing, q)
-                           else k $ popQ q
+instance MonadTrans (QueueT q r) where
+  lift m = QueueT $ \q k -> do x <- m
+                               k (x, q)
+               
+pushQ :: q -> QueueT q r m ()
+pushQ x = QueueT $ \q k -> k ((), pushQueue x q)
 
+popQ :: (Monad m) => QueueT q r m q
+popQ = QueueT $ \q k -> if nullQueue q
+                           then return (Nothing, q)
+                           else k $ popQueue q
 
-runQM qm = runQueueM (fmap Just qm) emptyQ id
+runQ qm = runQueueT (fmap Just qm) emptyQueue return
 
-runTree c = runQM $ pushQM c >> loop
-  where loop = do c <- popQM
+runBFS c = runQ $ pushQ c >> loop
+  where loop = do mc <- popQ
+                  c <- lift (runTreeT mc)
                   case c of
-                    Leaf x -> return x
-                    Empty -> loop
-                    Node x y -> pushQM x >> pushQM y >> loop
+                    LeafT x -> return x
+                    EmptyT -> loop
+                    NodeT mx my -> do pushQ mx
+                                      pushQ my
+                                      loop
 
 choose :: (MonadPlus m) => [a] -> m a
 choose = foldr (mplus . return) mzero
 
---test :: Int -> Tree (Int, Int)
-test c = fst . runTree $ do
-  x <- choose [1..]
-  y <- choose [x..]
-  guard $ x * y == c
-  return (x, y)
+test :: Int -> Maybe (Int, Int)
+test c = runIdentity $ do
+  (x, q) <- runBFS $ do
+    x <- choose [1..]
+    y <- choose [x..]
+    guard $ x * y == c
+    return (x, y)
+  return x
 
-testTreeT :: TreeT IO (Int, Int)
+testTreeT :: IO (Maybe (Int, Int))
 testTreeT = do
-  liftIO $ putStr "enter a number: "
-  c <- liftIO readLn
-  x <- choose [1..40]
-  y <- choose [1..40]
-  guard $ x * y == c
-  return (x, y)
-
-testTreeT2 = do
-  t <- runTreeT testTreeT
-  return . fst . runTree $ t
+  (x, q) <- runBFS $ do
+    liftIO $ putStr "enter a number: "
+    c <- liftIO readLn
+    x <- choose [1..]
+    y <- choose [x..]
+    guard $ x * y == c
+    liftIO . putStrLn $ "a solution is " ++ show (x, y)
+    return (x, y)
+  return x
