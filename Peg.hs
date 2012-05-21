@@ -31,34 +31,19 @@ import System.Console.Haskeline hiding (throwIO, handle)
 import System.Environment
 import System.FilePath
 import System.IO
-import Control.Monad.Logic
 import Control.Monad.State
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 
+import Data.Maybe
 import Data.List
 
 import Debug.Trace
-import System.IO.Unsafe
+import Search
 
--- crude iterative deepening
-
-depthInc :: Int
-depthInc = 50
-
-evalStack st = loop 0
-  where loop d = do resetMore
-                    r <- evalStackD st d
-                    m <- isThereMore
-                    if m
-                      then do r' <- unsafeInterleaveIO $ loop (d+depthInc)
-                              return $ r ++ r'
-                      else return r
-                    
-evalStackD (s, m, c) d = observeAllT $ do
-  PegState s _ m d' _ c <- execStateT force $ PegState s [] m d 0 c
-  guard $ d' < depthInc
+evalStack (s, m, c) = runBFSAllI $ do
+  PegState s _ m _ c <- execStateT force $ PegState s [] m 0 c
   return (s, m, c)
 
 hGetLines h = do

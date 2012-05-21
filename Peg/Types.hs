@@ -20,12 +20,13 @@ module Peg.Types where
 
 import Control.Applicative
 import Data.Maybe
-import Control.Monad.Logic
 import Control.Monad.State
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
+
+import Search
 
 type Stack = [Value]
 type Env = Map String [Peg ()]
@@ -33,10 +34,9 @@ type Env = Map String [Peg ()]
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Env,
-                           psDepth :: Int,
                            psUniqueVarCounter :: Int,
                            psConstraints :: [Stack] {-Map String [Stack]-} }
-type Peg = StateT PegState (LogicT IO)
+type Peg = StateT PegState (TreeT IO)
 data Rule = Rule { getRule :: Stack -> Peg Stack }
 data Value = F Double
            | I Integer

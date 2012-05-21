@@ -1,4 +1,4 @@
-SOURCE=Peg.hs Peg/*.hs *.peg Makefile README.md
+SOURCE=Peg.hs Search.hs Peg/*.hs *.peg Makefile README.md
 
 peg: Peg.hs Peg/*.hs
 	ghc --make -DMAIN -o peg -O -ltinfo Peg.hs

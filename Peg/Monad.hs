@@ -23,12 +23,11 @@ import Peg.Types
 import Peg.Parse (traceStack)
 
 import Control.Applicative
-import Control.Monad.Logic
 import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
 import Control.Exception
-
+{-
 import Data.IORef
 import System.IO.Unsafe
 
@@ -44,7 +43,7 @@ isThereMore = readIORef dirtyIORef
 
 theresMore :: Peg ()
 theresMore = liftIO (writeIORef dirtyIORef True) >> mzero
-
+-}
 -- | pop an argument from the stack, push onto argument stack
 getArg check = do
   force
@@ -69,43 +68,36 @@ letNum x | x <= 0 = "a"
   where a = fromEnum 'a'
 
 newVar :: Peg Value
-newVar = do PegState s a m d n c <- get
+newVar = do PegState s a m n c <- get
 #ifdef DEBUG
             when (n > 25) mzero
 #endif
-            put $ PegState s a m d (n+1) c
+            put $ PegState s a m (n+1) c
             return . V $ '_': letNum n
 
-depthLimit :: Peg ()
-depthLimit = do PegState s a m d n c <- get
-                when (d >= 0) $ do
-                  if d == 0
-                    then theresMore
-                    else put $ PegState s a m (d-1) n c
-
-pushStack x = modify (\(PegState s a m d n c) -> PegState (x:s) a m d n c)
-appendStack x = modify (\(PegState s a m d n c) -> PegState (x++s) a m d n c)
+pushStack x = modify (\(PegState s a m n c) -> PegState (x:s) a m n c)
+appendStack x = modify (\(PegState s a m n c) -> PegState (x++s) a m n c)
 
 popStack :: Peg Value
-popStack = do PegState (x:s) a m d n c <- get
-              put $ PegState s a m d n c
+popStack = do PegState (x:s) a m n c <- get
+              put $ PegState s a m n c
               return x
 emptyStack = null . psStack <$> get
 
-setStack s = modify (\(PegState _ a m d n c) -> PegState s a m d n c)
+setStack s = modify (\(PegState _ a m n c) -> PegState s a m n c)
 
 getStack :: Peg Stack
 getStack = psStack <$> get
 
-pushArg x = modify (\(PegState s a m d n c) -> PegState s (x:a) m d n c)
+pushArg x = modify (\(PegState s a m n c) -> PegState s (x:a) m n c)
 
 popArg :: Peg Value
-popArg = do PegState s (x:a) m d n c <- get
-            put $ PegState s a m d n c
+popArg = do PegState s (x:a) m n c <- get
+            put $ PegState s a m n c
             return x
 
 peekArg :: Peg Value
-peekArg = do PegState s (x:a) m d n c <- get
+peekArg = do PegState s (x:a) m n c <- get
              return x
 
 doWord w = do
@@ -114,7 +106,7 @@ doWord w = do
   case w `M.lookup` m of
     Nothing -> pushStack (W w)
     Just [x] -> x 
-    Just x -> depthLimit >> foldr interleave mzero x
+    Just x -> msum x
   popArg
   return ()
 
@@ -133,5 +125,5 @@ force = do
 minsert k x = M.insertWith (++) k [x]
 mlookup k = maybe [] id . M.lookup k
 
---addConstraint v f = modify (\(PegState s a m d n c) -> PegState s a m d n (minsert v f c))
-addConstraint x = modify $ \(PegState s a m d n c) -> PegState s a m d n (x:c)
+--addConstraint v f = modify (\(PegState s a m n c) -> PegState s a m n (minsert v f c))
+addConstraint x = modify $ \(PegState s a m n c) -> PegState s a m n (x:c)

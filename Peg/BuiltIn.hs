@@ -24,7 +24,7 @@ import Peg.Parse
 
 import Control.Applicative
 import Data.List
-import Control.Monad.Logic
+--import Control.Monad.Logic
 import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -94,8 +94,7 @@ unpackR = do
     V v -> do pushStack $ W "["
               appendStackVar v
 
-appendStackVar v = addConstraint [W "null?", V v] `interleave` do
-  depthLimit
+appendStackVar v = addConstraint [W "null?", V v] `mplus` do
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
@@ -103,8 +102,7 @@ appendStackVar v = addConstraint [W "null?", V v] `interleave` do
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
-callVar v = addConstraint [W "null?", V v] `interleave`  do
-  depthLimit
+callVar v = addConstraint [W "null?", V v] `mplus`  do
   x <- newVar
   y <- newVar
   addConstraint [W "==", L [x, y], L [W "popr", V v]]
@@ -121,14 +119,14 @@ eat v = addConstraint [W "null?", V v] <|> do
   force
   eat v'
 -}
-bind nm l = modify $ \(PegState s a w d n c) ->
-              PegState s a (minsert nm (f l) w) d n c
+bind nm l = modify $ \(PegState s a w n c) ->
+              PegState s a (minsert nm (f l) w) n c
   where f l = do w <- popArg
                  appendStack l
                  force
                  pushArg w
 
-unbind nm = modify $ \(PegState s a w d n c) -> PegState s a (M.delete nm w) d n c
+unbind nm = modify $ \(PegState s a w n c) -> PegState s a (M.delete nm w) n c
 
 gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
 gatherList n l (w@(W "[") : s)

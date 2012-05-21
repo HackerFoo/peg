@@ -6,6 +6,8 @@ import Control.Monad.Trans
 import System.IO
 import Control.Monad.Identity
 
+import System.IO.Unsafe
+
 {-
 data Tree a = Node (Tree a) (Tree a) | Leaf a | Empty deriving (Show)
 
@@ -107,15 +109,39 @@ popQ = QueueT $ \q k -> if nullQueue q
 
 runQ qm = runQueueT (fmap Just qm) emptyQueue return
 
-runBFS c = runQ $ pushQ c >> loop
-  where loop = do mc <- popQ
-                  c <- lift (runTreeT mc)
-                  case c of
-                    LeafT x -> return x
-                    EmptyT -> loop
-                    NodeT mx my -> do pushQ mx
-                                      pushQ my
-                                      loop
+runWithQ q qm = runQueueT (fmap Just qm) q return
+
+runBFS c = runQ $ pushQ c >> bfs
+
+bfs :: (Monad m) => QueueT (TreeT m a) r m a
+bfs = do mc <- popQ
+         c <- lift (runTreeT mc)
+         case c of
+           LeafT x -> return x
+           EmptyT -> bfs
+           NodeT mx my -> do pushQ mx
+                             pushQ my
+                             bfs
+
+runBFSn n c = runBFSn' n (pushQueue c emptyQueue)
+
+runBFSn' n q | n <= 0 = return []
+             | otherwise = do (mx, q') <- runWithQ q bfs
+                              case mx of
+                                Nothing -> return []
+                                Just x -> fmap (x :) $ runBFSn' (n-1) q'
+
+runBFSAll c = runBFSAll' $ pushQueue c emptyQueue
+runBFSAll' q = do (mx, q') <- runWithQ q bfs
+                  case mx of
+                    Nothing -> return []
+                    Just x -> fmap (x :) $ runBFSAll' q'
+
+runBFSAllI c = runBFSAllI' $ pushQueue c emptyQueue
+runBFSAllI' q = do (mx, q') <- runWithQ q bfs
+                   case mx of
+                     Nothing -> return []
+                     Just x -> fmap (x :) . unsafeInterleaveIO $ runBFSAllI' q'
 
 choose :: (MonadPlus m) => [a] -> m a
 choose = foldr (mplus . return) mzero
@@ -129,9 +155,9 @@ test c = runIdentity $ do
     return (x, y)
   return x
 
-testTreeT :: IO (Maybe (Int, Int))
+testTreeT :: IO [(Int, Int)]
 testTreeT = do
-  (x, q) <- runBFS $ do
+  x <- runBFSAllI $ do
     liftIO $ putStr "enter a number: "
     c <- liftIO readLn
     x <- choose [1..]
@@ -139,4 +165,4 @@ testTreeT = do
     guard $ x * y == c
     liftIO . putStrLn $ "a solution is " ++ show (x, y)
     return (x, y)
-  return x
+  return (take 4 x)
