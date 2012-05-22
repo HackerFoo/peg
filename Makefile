@@ -1,9 +1,9 @@
 SOURCE=Peg.hs Search.hs Peg/*.hs *.peg Makefile README.md
 
-peg: Peg.hs Peg/*.hs
+peg: Peg.hs Search.hs Peg/*.hs
 	ghc --make -DMAIN -o peg -O -ltinfo Peg.hs
 
-peg-debug: Peg.hs Peg/*.hs
+peg-debug: Peg.hs Search.hs Peg/*.hs
 	ghc --make -DMAIN -DDEBUG -o peg-debug -O -ltinfo Peg.hs
 
 .PHONY: clean

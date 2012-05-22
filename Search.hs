@@ -1,10 +1,11 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, TupleSections, GeneralizedNewtypeDeriving, RankNTypes, ImpredicativeTypes #-}
 module Search where
 
 import Control.Monad
 import Control.Monad.Trans
 import System.IO
 import Control.Monad.Identity
+import Control.Monad.Cont
 
 import System.IO.Unsafe
 
@@ -51,12 +52,10 @@ instance (Monad m) => MonadPlus (TreeT m) where
   mx `mplus` my = TreeT . return $ NodeT mx my
 
 instance MonadIO (TreeT IO) where
-  liftIO m = TreeT $ do x <- m
-                        return (LeafT x)
+  liftIO = lift
                
 instance MonadTrans TreeT where
-  lift m = TreeT $ do x <- m
-                      return (LeafT x)
+  lift = TreeT . liftM LeafT
                
 data Queue a = Queue [a] ([a] -> [a])
 
@@ -76,54 +75,50 @@ listQueue (Queue l f) = l ++ f []
 nullQueue = nullQ' . forceQueue
   where nullQ' (Queue l _) = null l
 
-data QueueT q r m a = QueueT {
-  runQueueT :: Queue q ->
+data QueueStateT q r m a = QueueStateT {
+  runQueueStateT :: Queue q ->
                ((a, Queue q) -> m (Maybe r, Queue q)) ->
                m (Maybe r, Queue q)
 }
 
-instance Functor (QueueT q r m) where
-  fmap f (QueueT qf) = QueueT $ \q k -> qf q (k . (\(x, q) -> (f x, q)))
+instance Functor (QueueStateT q r m) where
+  fmap f (QueueStateT qf) = QueueStateT $ \q k -> qf q (k . (\(x, q) -> (f x, q)))
 
-instance Monad (QueueT q r m) where
-  return x = QueueT $ \q k -> k (x, q)
-  QueueT qf >>= f = QueueT $ \q k ->
-                      qf q $ \(x, q') ->
-                        runQueueT (f x) q' k
+instance Monad (QueueStateT q r m) where
+  return x = QueueStateT $ \q k -> k (x, q)
+  QueueStateT qf >>= f = QueueStateT $ \q k ->
+                           qf q $ \(x, q') ->
+                             runQueueStateT (f x) q' k
 
-instance MonadIO (QueueT q r IO) where
-  liftIO m = QueueT $ \q k -> do x <- m
-                                 k (x, q)
+instance MonadIO (QueueStateT q r IO) where
+  liftIO = lift
 
-instance MonadTrans (QueueT q r) where
-  lift m = QueueT $ \q k -> do x <- m
-                               k (x, q)
+instance MonadTrans (QueueStateT q r) where
+  lift m = QueueStateT $ \q k -> k . (, q) =<< m
                
-pushQ :: q -> QueueT q r m ()
-pushQ x = QueueT $ \q k -> k ((), pushQueue x q)
+pushQ :: q -> QueueStateT q r m ()
+pushQ x = QueueStateT $ \q k -> k ((), pushQueue x q)
 
-popQ :: (Monad m) => QueueT q r m q
-popQ = QueueT $ \q k -> if nullQueue q
-                           then return (Nothing, q)
-                           else k $ popQueue q
+popQ :: (Monad m) => QueueStateT q r m q
+popQ = QueueStateT $ \q k -> if nullQueue q
+                               then return (Nothing, q)
+                               else k $ popQueue q
 
-runQ qm = runQueueT (fmap Just qm) emptyQueue return
+runQ qm = runQueueStateT (fmap Just qm) emptyQueue return
 
-runWithQ q qm = runQueueT (fmap Just qm) q return
+runWithQ q qm = runQueueStateT (fmap Just qm) q return
 
 runBFS c = runQ $ pushQ c >> bfs
 
-bfs :: (Monad m) => QueueT (TreeT m a) r m a
+bfs :: (Monad m) => QueueStateT (TreeT m a) r m a
 bfs = do mc <- popQ
-         c <- lift (runTreeT mc)
+         c <- lift $ runTreeT mc
          case c of
            LeafT x -> return x
            EmptyT -> bfs
-           NodeT mx my -> do pushQ mx
-                             pushQ my
-                             bfs
+           NodeT mx my -> pushQ mx >> pushQ my >> bfs
 
-runBFSn n c = runBFSn' n (pushQueue c emptyQueue)
+runBFSn n c = runBFSn' n $ pushQueue c emptyQueue
 
 runBFSn' n q | n <= 0 = return []
              | otherwise = do (mx, q') <- runWithQ q bfs
