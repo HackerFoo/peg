@@ -15,6 +15,11 @@
 [int2?! sub_int# int?!] "-" :def
 [int2?! mul_int# int?!] "*" :def
 [{int?; int? [dup 0 /=] dip &&} types! div_int# int?!] "div" :def
+[{int?; int? [dup 0 /=] dip &&} types! mod_int# int?!] "mod" :def
+[{int?; int? [dup 0 /=] dip &&} types! divMod_int# int2?!] "divMod" :def
+[{int?; int? [dup 0 /=] dip &&} types! quot_int# int?!] "quot" :def
+[{int?; int? [dup 0 /=] dip &&} types! rem_int# int?!] "rem" :def
+[{int?; int? [dup 0 /=] dip &&} types! quotRem_int# int2?!] "quotRem" :def
 [{int?; int? [dup 0 >=] dip &&} types! pos_power_int# int?!] "^" :def
 [{float?; int? [dup 0 >=] dip &&} types! pos_power_float# float?!] "^" :def
 [float_int?! int_power_float# float?!] "^^" :def

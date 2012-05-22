@@ -37,7 +37,7 @@ withArgs cI nO f = do
   if any isVar i
     then do w@(W _) <- peekArg
             vs <- replicateM nO newVar
-            addConstraint [W "==", L vs, L (w:i)]
+            addConstraint (vs, w:i)
             appendStack vs
     else f i
 
@@ -65,6 +65,7 @@ opi_f f = op' [isInt] 1 $ \[I x] -> [F $ f x]
 op2i_b f = op' [isInt, isInt] 1 $ \[I x, I y] -> [W . show $ x `f` y]
 op2f_b f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [W . show $ x `f` y]
 op2c_b f = op' [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
+op2i_2i f = op' [isInt, isInt] 2 $ \[I x, I y] -> let (u, w) = f x y in [I w, I u]
 
 isType :: (Value -> Bool) -> Peg ()
 isType f = do
@@ -74,7 +75,7 @@ isType f = do
   if isVar x
     then do w@(W _) <- peekArg
             v <- newVar
-            addConstraint [W "==", v, w, x]
+            addConstraint ([v], [w, x])
             pushStack v
     else pushStack . W . show $ f x
 
@@ -94,18 +95,18 @@ unpackR = do
     V v -> do pushStack $ W "["
               appendStackVar v
 
-appendStackVar v = addConstraint [W "null?", V v] `mplus` do
+appendStackVar v = addConstraint ([V v], [L []]) `mplus` do
   x <- newVar
   y <- newVar
-  addConstraint [W "==", L [x, y], L [W "popr", V v]]
+  addConstraint ([x, y], [W "popr", V v])
   appendStack [x, W "$#", y]
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
-callVar v = addConstraint [W "null?", V v] `mplus`  do
+callVar v = addConstraint ([V v], [L []]) `mplus`  do
   x <- newVar
   y <- newVar
-  addConstraint [W "==", L [x, y], L [W "popr", V v]]
+  addConstraint ([x, y], [W "popr", V v])
   s <- getStack
   case gatherList 0 [] s of
     Left _ -> setStack [x, W "$#", y]
@@ -150,6 +151,11 @@ builtins = wordMap [
   ("sub_int#", op2i_i (-)),
   ("mul_int#", op2i_i (*)),
   ("div_int#", op2i_i div),
+  ("mod_int#", op2i_i mod),
+  ("divMod_int#", op2i_2i divMod),
+  ("quot_int#", op2i_i quot),
+  ("rem_int#", op2i_i rem),
+  ("quotRem_int#", op2i_2i quotRem),
   ("pos_power_int#", op2i_i (^)),
   ("pos_power_float#", opfi_f (^)),
   ("int_power_float#", opfi_f (^^)),
@@ -227,7 +233,7 @@ builtins = wordMap [
              pushStack =<< popArg),
   ("!", do getArg $ (== W "True") ||. isVar
            x <- popArg
-           when (isVar x) $ addConstraint [x]
+           when (isVar x) $ addConstraint ([x], [W "True"])
            force),
 
   -- lists

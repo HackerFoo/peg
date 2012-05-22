@@ -98,7 +98,7 @@ evalLoop p m = do
               mapM_ printAlt r
               evalLoop s' m'
   where printConstraints c = --return ()
-          mapM_ (outputStrLn . ("= "++) . showStack) $ reverse c
+          mapM_ (\(x, y) -> outputStrLn $ showStack x ++ " <-- " ++ showStack y) $ reverse c
         printAlt (s,_,c) = do
           outputStrLn . ("| "++) . showStack $ s
           printConstraints c

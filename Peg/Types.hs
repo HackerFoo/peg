@@ -35,7 +35,7 @@ data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Env,
                            psUniqueVarCounter :: Int,
-                           psConstraints :: [Stack] {-Map String [Stack]-} }
+                           psConstraints :: [(Stack, Stack)] {-Map String [Stack]-} }
 type Peg = StateT PegState (TreeT IO)
 data Rule = Rule { getRule :: Stack -> Peg Stack }
 data Value = F Double
