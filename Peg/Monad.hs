@@ -126,4 +126,14 @@ minsert k x = M.insertWith (++) k [x]
 mlookup k = maybe [] id . M.lookup k
 
 --addConstraint v f = modify (\(PegState s a m n c) -> PegState s a m n (minsert v f c))
-addConstraint x = modify $ \(PegState s a m n c) -> PegState s a m n (x:c)
+addConstraint f x = modify $ \(PegState s a m n c) -> PegState s a m n (f x c)
+
+bind nm l = modify $ \(PegState s a w n c) ->
+              PegState s a (minsert nm (f l) w) n c
+  where f l = do w <- popArg
+                 appendStack l
+                 force
+                 pushArg w
+
+unbind nm = modify $ \(PegState s a w n c) -> PegState s a (M.delete nm w) n c
+

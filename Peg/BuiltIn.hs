@@ -37,7 +37,7 @@ withArgs cI nO f = do
   if any isVar i
     then do w@(W _) <- peekArg
             vs <- replicateM nO newVar
-            addConstraint (vs, w:i)
+            addConstraintP (vs, w:i)
             appendStack vs
     else f i
 
@@ -74,8 +74,9 @@ isType f = do
   pushStack x
   if isVar x
     then do w@(W _) <- peekArg
-            v <- newVar
-            addConstraint ([v], [w, x])
+            --v <- newVar
+            v <- return (W "True") `mplus` return (W "False")
+            addConstraintP ([v], [w, x])
             pushStack v
     else pushStack . W . show $ f x
 
@@ -95,39 +96,22 @@ unpackR = do
     V v -> do pushStack $ W "["
               appendStackVar v
 
-appendStackVar v = addConstraint ([V v], [L []]) `mplus` do
+appendStackVar v = addConstraintP ([V v], [L []]) `mplus` do
   x <- newVar
   y <- newVar
-  addConstraint ([x, y], [W "popr", V v])
+  addConstraintP ([x, y], [W "popr", V v])
   appendStack [x, W "$#", y]
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
-callVar v = addConstraint ([V v], [L []]) `mplus`  do
+callVar v = addConstraintP ([V v], [L []]) `mplus`  do
   x <- newVar
   y <- newVar
-  addConstraint ([x, y], [W "popr", V v])
+  addConstraintP ([x, y], [W "popr", V v])
   s <- getStack
   case gatherList 0 [] s of
     Left _ -> setStack [x, W "$#", y]
     Right (_, s) -> setStack $ x : W "$#" : y : W "[" : s
-{-
-eat v = addConstraint [W "null?", V v] <|> do
-  getArg (anything &&. (not . hasIo))
-  popArg
-  x@(V v') <- newVar
-  addConstraint [W "==", L [W "pop", x], L [W "popr'", V v]]
-  force
-  eat v'
--}
-bind nm l = modify $ \(PegState s a w n c) ->
-              PegState s a (minsert nm (f l) w) n c
-  where f l = do w <- popArg
-                 appendStack l
-                 force
-                 pushArg w
-
-unbind nm = modify $ \(PegState s a w n c) -> PegState s a (M.delete nm w) n c
 
 gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
 gatherList n l (w@(W "[") : s)
@@ -233,7 +217,7 @@ builtins = wordMap [
              pushStack =<< popArg),
   ("!", do getArg $ (== W "True") ||. isVar
            x <- popArg
-           when (isVar x) $ addConstraint ([x], [W "True"])
+           when (isVar x) $ addConstraintP ([x], [W "True"])
            force),
 
   -- lists
@@ -291,3 +275,19 @@ builtins = wordMap [
   (":undef", do getArg isString
                 Just s <- toString <$> popArg
                 unbind s)]
+
+subst a b xs = map f xs
+  where f x | x == a = b
+            | otherwise = x
+
+substConstr a b = (([a], [b]) :) . foldr propRules [] . map (\(l,r) -> (subst a b l, subst a b r))
+
+addConstraintP = addConstraint propRules
+
+propRules ([l], [r]) cs = substConstr l r cs
+propRules ([W "True"], [W "eq?", v@(V _), x]) cs = substConstr v x cs
+propRules ([W "True"], [W "eq?", x, v@(V _)]) cs = substConstr v x cs
+propRules ([I x], [W "add_int#", v@(V _), I y]) cs = substConstr v (I $ x - y) cs
+propRules ([I x], [W "sub_int#", v@(V _), I y]) cs = substConstr v (I $ x + y) cs
+propRules c cs = c:cs
+
