@@ -27,23 +27,8 @@ import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
 import Control.Exception
-{-
-import Data.IORef
-import System.IO.Unsafe
+import Data.List
 
-dirtyIORef :: IORef Bool
-dirtyIORef = unsafePerformIO $ newIORef False
-
-resetMore :: IO ()
-resetMore = writeIORef dirtyIORef False
-
-isThereMore :: IO Bool
-isThereMore = readIORef dirtyIORef
-
-
-theresMore :: Peg ()
-theresMore = liftIO (writeIORef dirtyIORef True) >> mzero
--}
 -- | pop an argument from the stack, push onto argument stack
 getArg check = do
   force
@@ -125,8 +110,23 @@ force = do
 minsert k x = M.insertWith (++) k [x]
 mlookup k = maybe [] id . M.lookup k
 
---addConstraint v f = modify (\(PegState s a m n c) -> PegState s a m n (minsert v f c))
-addConstraint f x = modify $ \(PegState s a m n c) -> PegState s a m n (f x c)
+subst a b xs = map f xs
+  where f (L xs) = L $ subst a b xs
+        f x | x == a = b
+            | otherwise = x
+
+addConstraint x = modify $ \(PegState s a w n c) -> PegState s a w n (x:c)
+
+substVar f x y = do
+  PegState s a w n c <- get
+  let (cp, cn) = partition (\(l, r) -> x `elem` l || x `elem` r) c
+  put $ PegState (subst x y s) (subst x y a) w n cn
+  mapM_ (\(l, r) -> f (subst x y l, subst x y r)) cp
+
+getConstraints :: Peg [(Stack, Stack)]
+getConstraints = psConstraints <$> get
+setConstraints c = do PegState s a w n _ <- get
+                      put $ PegState s a w n c
 
 bind nm l = modify $ \(PegState s a w n c) ->
               PegState s a (minsert nm (f l) w) n c
@@ -137,3 +137,10 @@ bind nm l = modify $ \(PegState s a w n c) ->
 
 unbind nm = modify $ \(PegState s a w n c) -> PegState s a (M.delete nm w) n c
 
+eval s' = do
+  st@(PegState s a w n c) <- get
+  put $ PegState s' [] w n c
+  force
+  s'' <- getStack
+  put st
+  return s''

@@ -29,6 +29,8 @@ import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
 
+import Debug.Trace
+
 -------------------- Converters --------------------
 
 withArgs cI nO f = do
@@ -276,18 +278,43 @@ builtins = wordMap [
                 Just s <- toString <$> popArg
                 unbind s)]
 
-subst a b xs = map f xs
-  where f x | x == a = b
-            | otherwise = x
+addConstraintP = propRules
 
-substConstr a b = (([a], [b]) :) . foldr propRules [] . map (\(l,r) -> (subst a b l, subst a b r))
+propRules ([W "True"], [W "eq?", v@(V _), x]) = substVar propRules v x
+propRules ([W "True"], [W "eq?", x, v@(V _)]) = substVar propRules v x
+propRules ([I x], [W "add_int#", v@(V _), I y]) = substVar propRules v (I $ x - y)
+propRules ([I x], [W "add_int#", I y, v@(V _)]) = substVar propRules v (I $ x - y)
+propRules ([I x], [W "sub_int#", v@(V _), I y]) = substVar propRules v (I $ y + x)
+propRules ([I x], [W "sub_int#", I y, v@(V _)]) = substVar propRules v (I $ y - x)
+propRules ([I x], [W "mul_int#", v@(V _), I y]) =
+  guard (x `mod` y == 0) >> substVar propRules v (I $ x `div` y)
+propRules ([I x], [W "mul_int#", I y, v@(V _)]) =
+  guard (x `mod` y == 0) >> substVar propRules v (I $ x `div` y)
+propRules ([I x], [W "div_int#", v@(V _), I y]) = 
+  msum $ map (substVar propRules v . I) [y * x .. y*(x+1)-1]
+propRules ([I x], [W "div_int#", I y, v@(V _)]) =
+  guard (y `mod` x == 0) >> substVar propRules v (I $ y `div` x)
+propRules ([F x], [W "add_float#", v@(V _), F y]) =
+  substVar propRules v (F $ x - y)
+propRules ([F x], [W "add_float#", F y, v@(V _)]) =
+  substVar propRules v (F $ x - y)
+propRules ([F x], [W "sub_float#", v@(V _), F y]) =
+  substVar propRules v (F $ y + x)
+propRules ([F x], [W "sub_float#", F y, v@(V _)]) =
+  substVar propRules v (F $ y - x)
+propRules ([F x], [W "mul_float#", v@(V _), F y]) =
+  substVar propRules v (F $ x / y)
+propRules ([F x], [W "mul_float#", F y, v@(V _)]) =
+  substVar propRules v (F $ x / y)
+propRules ([F x], [W "divide_float#", v@(V _), F y])
+  = substVar propRules v (F $ y * x)
+propRules ([F x], [W "divide_float#", F y, v@(V _)])
+  = substVar propRules v (F $ y / x)
+propRules (l, r) | not (any isVar r) = unify l =<< eval r
+propRules c = addConstraint c
 
-addConstraintP = addConstraint propRules
-
-propRules ([l], [r]) cs = substConstr l r cs
-propRules ([W "True"], [W "eq?", v@(V _), x]) cs = substConstr v x cs
-propRules ([W "True"], [W "eq?", x, v@(V _)]) cs = substConstr v x cs
-propRules ([I x], [W "add_int#", v@(V _), I y]) cs = substConstr v (I $ x - y) cs
-propRules ([I x], [W "sub_int#", v@(V _), I y]) cs = substConstr v (I $ x + y) cs
-propRules c cs = c:cs
+unify (x:l) (y:r) | x == y = unify l r
+                  | isVar x = substVar propRules x y >> unify l r
+unify [] _ = return ()
+unify x y = mzero
 

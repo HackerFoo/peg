@@ -91,13 +91,13 @@ evalLoop p m = do
         Left e -> outputStrLn (show e) >> evalLoop p m
         Right s -> do
           x' <- liftIO $ evalStack (makeIOReal s, m, [])
-          case take 5 (nubBy (\(a,_,_) (b,_,_) -> a == b) x') of
+          case take 5 {- . (nubBy (\(a,_,_) (b,_,_) -> a == b) $ -} x' of
             [] -> evalLoop s m
             ((s',m',c'):r) -> do
               printConstraints c'
               mapM_ printAlt r
               evalLoop s' m'
-  where printConstraints c = --return ()
+  where printConstraints c =
           mapM_ (\(x, y) -> outputStrLn $ showStack x ++ " <-- " ++ showStack y) $ reverse c
         printAlt (s,_,c) = do
           outputStrLn . ("| "++) . showStack $ s
