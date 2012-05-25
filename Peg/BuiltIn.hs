@@ -284,34 +284,58 @@ propRules ([W "True"], [W "eq?", v@(V _), x]) = substVar propRules v x
 propRules ([W "True"], [W "eq?", x, v@(V _)]) = substVar propRules v x
 propRules ([I x], [W "add_int#", v@(V _), I y]) = substVar propRules v (I $ x - y)
 propRules ([I x], [W "add_int#", I y, v@(V _)]) = substVar propRules v (I $ x - y)
+propRules ([I x], [W "add_int#", v'@(V _), v@(V _)]) 
+  | v == v' = guard (x `mod` 2 == 0) >> substVar propRules v (I $ x `div` 2)
 propRules ([I x], [W "sub_int#", v@(V _), I y]) = substVar propRules v (I $ y + x)
 propRules ([I x], [W "sub_int#", I y, v@(V _)]) = substVar propRules v (I $ y - x)
+propRules ([I x], [W "sub_int#", v'@(V _), v@(V _)])
+  | v == v' = guard (x == 0)
 propRules ([I x], [W "mul_int#", v@(V _), I y]) =
   guard (x `mod` y == 0) >> substVar propRules v (I $ x `div` y)
 propRules ([I x], [W "mul_int#", I y, v@(V _)]) =
   guard (x `mod` y == 0) >> substVar propRules v (I $ x `div` y)
+propRules ([I x], [W "mul_int#", v'@(V _), v@(V _)])
+  | v == v' = guard (x >= 0 && r*r == x) >> substVar propRules v (I r)
+  where r = round . sqrt . realToFrac $ x
 propRules ([I x], [W "div_int#", v@(V _), I y]) = 
   msum $ map (substVar propRules v . I) [y * x .. y*(x+1)-1]
 propRules ([I x], [W "div_int#", I y, v@(V _)]) =
   guard (y `mod` x == 0) >> substVar propRules v (I $ y `div` x)
+propRules ([I x], [W "div_int#", v'@(V _), v@(V _)])
+  | v == v' = guard $ x == 1
 propRules ([F x], [W "add_float#", v@(V _), F y]) =
   substVar propRules v (F $ x - y)
 propRules ([F x], [W "add_float#", F y, v@(V _)]) =
   substVar propRules v (F $ x - y)
+propRules ([F x], [W "add_float#", v@(V _), v'@(V _)])
+  | v == v' = substVar propRules v (F $ x / 2)
 propRules ([F x], [W "sub_float#", v@(V _), F y]) =
   substVar propRules v (F $ y + x)
 propRules ([F x], [W "sub_float#", F y, v@(V _)]) =
   substVar propRules v (F $ y - x)
+propRules ([F x], [W "sub_float#", v@(V _), v'@(V _)])
+  | v == v' = guard $ x == 0
 propRules ([F x], [W "mul_float#", v@(V _), F y]) =
   substVar propRules v (F $ x / y)
 propRules ([F x], [W "mul_float#", F y, v@(V _)]) =
   substVar propRules v (F $ x / y)
+propRules ([F x], [W "mul_float#", v@(V _), v'@(V _)])
+  | v == v' = guard (x >= 0) >> substVar propRules v (F $ sqrt x)
 propRules ([F x], [W "divide_float#", v@(V _), F y])
   = substVar propRules v (F $ y * x)
 propRules ([F x], [W "divide_float#", F y, v@(V _)])
   = substVar propRules v (F $ y / x)
+propRules ([F x], [W "divide_float#", v@(V _), v'@(V _)])
+  | v == v' = guard $ x == 1
+propRules ([h, L t], [W "popr", x@(V _)])
+  = substVar propRules x . L $ h:t
+propRules ([h, t@(V _)], [W "popr", x@(V _)])
+  = substVar propRules x . L $ [h, W "$#", t]
 propRules (l, r) | not (any isVar r) = unify l =<< eval r
 propRules c = addConstraint c
+
+hasVar (L xs) = any hasVar xs
+hasVar x = isVar x
 
 unify (x:l) (y:r) | x == y = unify l r
                   | isVar x = substVar propRules x y >> unify l r
