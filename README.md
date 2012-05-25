@@ -34,12 +34,17 @@ A word can only be resolved if the word can operate on its arguments.  The built
 
 The basic types are integers, floats, characters, words, and stacks.  As with the top level stack, these stacks are evaluated lazily.  Stacks are 'live', and will be evaluated as demanded, by such words as `popr`.  There is no way to directly extract an item from the left, and there is no way to extract an item without evaluation.
 
-    [1 2 3 +] popr --> [1] 5
+    [1 2 3 4 +] popr --> [1 2] 7
 
 A string literal is a stack consisting only of characters.  They are read and displayed backwards from stacks, to make them readable.
 
     ['o' 'l' 'l' 'e' 'h'] --> "hello"
     "hello" 0 pushr --> ['o' 'l' 'l' 'e' 'h' 0]
+
+A quoted value is another notation for a stack with a single element:
+
+    [1] --> `1
+    [] `2 pushr --> ``2
 
 Peg is flat, in that any expression can be divided on white space (except inside a literal), the pieces evaluated independently, and when the results are concatenated, evaluate to an equivalent expression to the original expression.
 
@@ -53,6 +58,20 @@ Example:
 Instead of using a monad to implement pure functional I/O, Peg simply uses a token representing the state of the world, `IO`.  Words that perform I/O always require `IO` as an argument, and put it back afterwards.
 
 `IO` can only be introduced from the top-level, by typing `IO`.  In other places, such as definitions and `read`, `IO` is parsed as a word with no special meaning.
+
+A variable in Peg appears as a string of letters preceded by `?`, such as `?x`.  A Peg variable is a logical variable.  A flexible typing system is provided in Peg in the form of constraints.  The type of a variable is its set of constraints.  This allows any predicate to be used as a type.
+
+If the constraints can be narrowed to a finite number of values, these values will be substituted for the variable.
+
+    ?x ?y / --> ?_a
+      -- constraints representing the type of /
+      -- True <-- ?y float?
+      -- True <-- ?x float?
+      -- ?_a <-- ?x ?y divide_float#
+      -- True <-- ?_a float?
+    ?x dup 2 + 5 eq? ! --> 3
+    ?x dup 4 div 3 eq?! dup 5 mod 0 eq?! --> 15
+    
 
 Built-in Words
 --------------
@@ -69,6 +88,8 @@ The format below is:
 
 `x` `dup` --> `x` `x`
 
+`A` `x` `f` `dip` --> `B` `x` -- applies f to stack under x
+
 `[` `xn` .. `x0` `]` --> `[xn .. x0]` -- gathers stack items into a list until `[` if possible
 
 `[ .. ]` `x` `pushr` --> `[ .. x]`
@@ -77,11 +98,9 @@ The format below is:
 
 `[ .. x]` `[y ..]` `.` --> `[ .. x y .. ]` -- concatenates stacks without evaluating anything
 
-`[ .. ]` `dupnull?` --> `[ .. ]` (`True` \/ `False`) -- indicates if the stack is empty, works on partial stacks
+`[ .. ]` `null?` --> `[ .. ]` (`True` \/ `False`) -- indicates if the stack is empty, works on partial stacks
 
-`True` `assert` --> -- only resolves if the argument is `True`
-
-`False` `deny` --> -- opposite of assert
+`True` `!` --> -- only resolves if the argument is `True`
 
 `x` `y` `\/` --> `x` \/ `y` -- continues execution non-deterministically with `x` and `y`
 
@@ -101,7 +120,7 @@ The format below is:
 
 `"x"` `read` --> `x` -- convert string representation of `x` into `x`, opposite of `show`
 
-`+`, `-`, `*`, `div`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=`, `realToFrac`, `round`, `floor`, `ceiling` -- numeric and comparison words defined as in Haskell Prelude
+`+`, `-`, `*`, `div`, `mod`, `divMod`, `quot`, `rem`, `quotRem`, `^`, `^^`, `**`, `exp`, `sqrt`, `log`, `logBase`, `sin`, `tan`, `cos`, `asin`, `atan`, `acos`, `sinh`, `tanh`, `cosh`, `asinh`, `atanh`, `acosh`, `<`, `<=`, `>`, `>=`, `realToFrac`, `round`, `floor`, `ceiling` -- numeric and comparison words defined as in Haskell Prelude
 
 `getChar`, `putChar`, `getLine`, `putStr`, `putStrLn` -- similar to Haskell Prelude.  Instead of running in IO monad, they require `IO` as the first argument, putting it back after executing
 
@@ -137,7 +156,7 @@ Build the interpreter using Cabal (`cabal configure; cabal build`).  Alternative
 
 Just call the `peg` executable with source files to be loaded (such as lib.peg) as arguments.
 
-The interpreter evaluates the input after pressing `Enter`.  The results will be printed after the next prompt, allowing you to edit the results.  If the cursor is not on the right, a word did not have enough arguments to be evaluated; the cursor will be placed so that you can provide the missing arguments.  If there are multiple results, up to 8 results will be printed, but only the first will appear at the prompt.  If there are no results, the result `no` is shown, which is equivalent (defined in `lib.peg`).
+The interpreter evaluates the input after pressing `Enter`.  The results will be printed after the next prompt, allowing you to edit the results.  If the cursor is not on the right, a word did not have enough arguments to be evaluated; the cursor will be placed so that you can provide the missing arguments.  If there are multiple results, several of the results will be printed, but only the first will appear at the prompt.  If there are no results, the input expression is return, which is trivially equivalent to itself.
 
 [Haskeline](http://hackage.haskell.org/package/haskeline) provides the line editing interface.  Clearing the input and pressing `Enter` will exit the interpreter.
 
@@ -156,9 +175,7 @@ The current idea is to use explicit type checks (such as `int?`) instead of intr
 
 The interpreter is currently dynamically typed, but I would like to make the compiler support static type checking, by proving that the result of a computation cannot be `no`.  The compiler could also optimize away types and most non-determinism.  I do realize that, in general, static type checking will be undecidable.  The compiler will be designed to resolve undecidable types interactively with the user.
 
-The language would not change significantly.  Product types are built from stacks, such as `[1 2 Ratio]`, and sum types are created using `\/`, such as `[1 Left] \/ ['a' Right]`, using undefined words at the top of the stack as tags.  Constructors can be created as the matching lowercase word, such as `x left --> [x Left]`.  Using the same word as the tag results in an infinitely nested stack, so the values can never be retrieved.
-
-I have done some work on types in `types.peg`, which extends some words to operate on type tags.
+The language would not change significantly.  Product types are built from stacks, such as `[1 2 Ratio]`, and sum types are created using `\/`, such as `[1 Left] \/ ['a' Right]`, using undefined words at the top of the stack as tags.  Constructors can be created as the matching lowercase word, such as `x left --> [x Left]`.
 
 ### Modules
 
