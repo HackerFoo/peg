@@ -102,3 +102,14 @@ evalLoop p m = do
         printAlt (s,_,c) = do
           printConstraints c
           outputStrLn . ("| "++) . showStack $ s
+
+uncycle [] = []
+uncycle s@(t:xs) | lambda == 0 = s
+                 | otherwise = map fst p ++ map fst (take lambda c)
+  where (p, c) = span (uncurry (/=)) . zip s $ drop lambda s
+        lambda = brent 1 1 t xs
+        brent _ _ _ [] = 0
+        brent l p t (h:xs)
+          | t == h = l
+          | l == p = brent 1 (p*2) h xs
+          | otherwise = brent (l+1) p t xs
