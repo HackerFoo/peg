@@ -38,17 +38,17 @@ charLiteral = P.charLiteral lexer
 stringLiteral = P.stringLiteral lexer
 
 word :: Parser Value
-word = W <$> ((:) <$> (lower <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#"))
+word = W <$> ((:) <$> (lower <|> char ':') <*> many (alphaNum <|> oneOf "?_'#"))
 
 atom :: Parser Value
 atom = A <$> (((:) <$> upper <*> many (alphaNum <|> oneOf "?_'#")) <|>
-              ((:[]) <$> char '['))
+              ((:[]) <$>  oneOf "[_"))
 
 var :: Parser Value
 var = V <$> (char '?' *> many1 (alphaNum <|> char '_'))
 
 symbol :: Parser Value
-symbol = W <$> (many1 (oneOf "!@#$%^&*()-_+=<>.~/?\\|") <|>
+symbol = W <$> (many1 (oneOf "!@#$%^&*()-+=<>.~/?\\|") <|>
                 fmap (:[]) (oneOf "]{};"))
 
 quote :: Parser Value

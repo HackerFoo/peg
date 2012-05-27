@@ -38,12 +38,13 @@ import qualified Data.Map as M
 
 import Data.Maybe
 import Data.List
+import Control.Monad.Identity
 
 import Debug.Trace
 import Search
 
-evalStack (s, m, c) = runBFSAllI $ do
-  PegState s _ m _ c <- execStateT force $ PegState s [] m 0 c
+evalStack (s, m, c) = runBFSAll $ do
+  PegState s _ m _ c _ <- execStateT force $ PegState s [] m 0 c []
   return (s, m, c)
 
 hGetLines h = do
@@ -71,12 +72,10 @@ load s m (input:r) =
   case parseStack input of
     Left e -> print e >> return m
     Right s -> do
-      x <- evalStack (s, m, [])
+      let x = runIdentity $ evalStack (s, m, [])
       case x of
         (s', m', _) : _ -> load s' m' r
         [] -> load s m r
-
-makeIOReal = map (\x -> if x == W "IO" then Io else x)
 
 evalLoop :: Stack -> Env -> InputT IO ()
 evalLoop p m = do
@@ -90,7 +89,7 @@ evalLoop p m = do
       Just input -> case parseStack input of
         Left e -> outputStrLn (show e) >> evalLoop p m
         Right s -> do
-          x' <- liftIO $ evalStack (makeIOReal s, m, [])
+          let x' = runIdentity $ evalStack (subst (A "IO") Io s, m, [])
           case take 5 x' of
             [] -> evalLoop s m
             ((s',m',c'):r) -> do

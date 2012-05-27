@@ -30,29 +30,29 @@ import Search
 
 type Stack = [Value]
 type Env = Map String [Peg ()]
---data Constraint = IsEqualTo Value deriving (Show)
 data PegState = PegState { psStack :: Stack,
                            psArgStack :: Stack,
                            psWords :: Env,
                            psUniqueVarCounter :: Int,
-                           psConstraints :: [(Stack, Stack)] {-Map String [Stack]-} }
-type Peg = StateT PegState (TreeT IO)
+                           psConstraints :: [(Stack, Stack)],
+                           psAncestors :: [Stack] }
+type Peg = StateT PegState Tree
 data Rule = Rule { getRule :: Stack -> Peg Stack }
-data Value = F Double
-           | I Integer
-           | C Char
-           | L Stack
-           | W String
-           | A String
-           | V String
-           | Io
+data Value = F Double  -- float
+           | I Integer -- integer
+           | C Char    -- character
+           | L Stack   -- stack
+           | W String  -- word
+           | A String  -- atom
+           | V String  -- variable
+           | Io        -- I/O token
   deriving (Show, Eq, Ord)
 
 isWord (W _) = True
 isWord _ = False
 
-isWordEq s (W s') = s == s'
-isWordEq _ _ = False
+isAtom (A _) = True
+isAtom _ = False
 
 isInt (I _) = True
 isInt _ = False
@@ -80,3 +80,6 @@ isIo _ = False
 
 isVar (V _) = True
 isVar _ = False
+
+has p (L l) = any (has p) l
+has p x = p x

@@ -99,6 +99,8 @@ unpackR = do
     V v -> do pushStack $ A "["
               appendStackVar v
 
+-- convert to constraint when accessing variable stack?
+
 appendStackVar v = addConstraintP ([V v], [L []]) `mplus` do
   x <- newVar
   y <- newVar
@@ -116,18 +118,7 @@ callVar v = addConstraintP ([V v], [L []]) `mplus`  do
     Left _ -> setStack [x, W "$#", y]
     Right (_, s) -> setStack $ x : W "$#" : y : A "[" : s
 
-gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
-gatherList n l (w@(A "[") : s)
-  | n <= 0 = Right (l,s)
-  | otherwise = gatherList (n-1) (w:l) s
-gatherList n l (w:s) = gatherList n (w:l) s
-gatherList n l [] = Left l
-
 wordMap = foldl' (flip (uncurry minsert)) M.empty
-
-hasIo (L l) = any hasIo l
-hasIo Io = True
-hasIo _ = False
 
 -------------------- Built-ins --------------------
 
@@ -243,7 +234,7 @@ builtins = wordMap [
   ("list?", isType $ isList ||. (== W "]")),
   ("char?", isType isChar),
   ("io?", isType isIo),
-  ("hasIO?", isType hasIo),
+  ("hasIO?", isType $ has isIo),
   ("eq?", withArgs [anything, anything] 1 $ \[x, y] -> do
             guard . not $ isList x && isList y
             pushStack . A . show $ x == y),
@@ -261,12 +252,16 @@ builtins = wordMap [
   -- I/O
   ("getChar#", do getArg isIo
                   pushStack =<< popArg
-                  liftIO getChar >>= pushStack . C),
+                  --liftIO getChar >>=
+                  v <- newVar
+                  addConstraintP ([v, Io], [W "getChar#", Io])
+                  pushStack v),
   ("putChar#", do getArg isChar
                   getArg isIo
                   io <- popArg
                   C c <- popArg
-                  liftIO $ putChar c
+                  --liftIO $ putChar c
+                  addConstraintP ([Io], [W "putChar#", C c, Io])
                   pushStack io),
 
   -- word definition
@@ -278,6 +273,10 @@ builtins = wordMap [
   (":undef", do getArg isString
                 Just s <- toString <$> popArg
                 unbind s)]
+
+isIoPrimitive (W "getChar#") = True
+isIoPrimitive (W "putChar#") = True
+isIoPrimitive _ = False
 
 addConstraintP = propRules
 
@@ -332,50 +331,12 @@ propRules ([h, L t], [W "popr", x@(V _)])
   = substVar propRules x . L $ h:t
 propRules ([h, t@(V _)], [W "popr", x@(V _)])
   = substVar propRules x . L $ [h, W "$#", t]
-propRules (l, r) | not (any isVar r) = unify' l =<< eval r
+propRules (l, r) | not (any (isVar ||. isIoPrimitive) r) = unify' l =<< eval r
 propRules c = addConstraint c
-
-hasVar (L xs) = any hasVar xs
-hasVar x = isVar x
 
 unify' x y = do b <- unify (x ++ [V "@x"]) (y ++ [V "@y"]) []
                 mapM_ (\(v, x) -> substVar propRules (V v) x) b
 
-unify [] [] b = return b
-unify [] _ b = mzero
-unify _ [] b = mzero
-unify [V v@('@':_)] ys b = updateBindings v (L ys) b
-unify xs [V v@('@':_)] b = updateBindings v (L xs) b
-unify (V x:xs) (y:ys) b | not (isWord y) =
-  unify (subst (V x) y xs) ys =<< updateBindings x y b
-unify (x:xs) (V y:ys) b | not (isWord x) =
-  unify xs (subst (V y) x ys) =<< updateBindings y x b
-unify (L x:xs) (L y:ys) b = unify xs ys =<< unify x y b
-unify (L x:xs) (W "]":ys) b =
-  case gatherList 0 [] ys of
-    Left _ -> mzero
-    Right (y', ys') -> unify (L x:xs) (L (reverse y'):ys') b
-unify (W "]":xs) (L y:ys) b =
-  case gatherList 0 [] xs of
-    Left _ -> mzero
-    Right (x', xs') -> unify (L (reverse x'):xs') (L y:ys) b
-unify (x:xs) (y:ys) b
-  | x == y = unify xs ys b
-  | otherwise = mzero
-
 unifyTest x y = unify x' y' []
   where Right x' = parseStack x
         Right y' = parseStack y
-
-subst1 a b (L xs) = L (subst a b xs)
-subst1 a b x | a == x = b
-             | otherwise = x
-
-occurs a (L bs) = any (occurs a) bs
-occurs a b = a == b
-
-updateBindings v x b = do
-  guard . not $ occurs (V v) x
-  b' <- mapM (\(a, z) -> let z' = subst1 (V v) x z in
-                           guard (not $ occurs (V a) z') >> return (a, z')) b
-  return $ (v,x) : b
