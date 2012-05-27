@@ -43,6 +43,7 @@ data Value = F Double
            | C Char
            | L Stack
            | W String
+           | A String
            | V String
            | Io
   deriving (Show, Eq, Ord)

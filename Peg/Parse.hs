@@ -38,14 +38,18 @@ charLiteral = P.charLiteral lexer
 stringLiteral = P.stringLiteral lexer
 
 word :: Parser Value
-word = W <$> ((:) <$> (letter <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#"))
+word = W <$> ((:) <$> (lower <|> oneOf ":_") <*> many (alphaNum <|> oneOf "?_'#"))
+
+atom :: Parser Value
+atom = A <$> (((:) <$> upper <*> many (alphaNum <|> oneOf "?_'#")) <|>
+              ((:[]) <$> char '['))
 
 var :: Parser Value
 var = V <$> (char '?' *> many1 (alphaNum <|> char '_'))
 
 symbol :: Parser Value
 symbol = W <$> (many1 (oneOf "!@#$%^&*()-_+=<>.~/?\\|") <|>
-                fmap (:[]) (oneOf "[]{};"))
+                fmap (:[]) (oneOf "]{};"))
 
 quote :: Parser Value
 quote = L . (:[]) <$> (char '`' *> value)
@@ -61,6 +65,7 @@ value = try number        <|>
         try var           <|>
         try symbol        <|>
         word              <|>
+        atom              <|>
         C <$> charLiteral <|>
         L . map C <$> stringLiteral <|>
         quote
@@ -69,9 +74,9 @@ comment = string "--" >> many (noneOf "\n")
 
 stackExpr :: Parser Stack
 stackExpr = concatMap f . reverse <$> (whiteSpace >> value `sepEndBy` whiteSpace <* optional comment)
-  where f (W "{") = [W "[", W "["]
+  where f (W "{") = [A "[", A "["]
         f (W "}") = [W "]", W "]"]
-        f (W ";") = [W "[", W "]"]
+        f (W ";") = [A "[", W "]"]
         f x = [x]
 
 showStack :: Stack -> String
@@ -81,6 +86,7 @@ showStack s = drop 1 $ loop s []
         loop (C x : s) = loop s . (' ':) . shows x
         loop (F x : s) = loop s . (' ':) . shows x
         loop (W x : s) = loop s . ((' ':x) ++)
+        loop (A x : s) = loop s . ((' ':x) ++)
         loop (V x : s) = loop s . ((' ':'?':x) ++)
         loop (Io : s) = loop s . (" IO" ++)
         loop (L [] : s) = loop s . (" [ ]" ++)

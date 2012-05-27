@@ -28,6 +28,7 @@ import Data.List
 import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as M
+import Control.Arrow (second)
 
 import Debug.Trace
 
@@ -77,15 +78,15 @@ isType f = do
   if isVar x
     then do w@(W _) <- peekArg
             --v <- newVar
-            v <- return (W "True") `mplus` return (W "False")
+            v <- return (A "True") `mplus` return (A "False")
             addConstraintP ([v], [w, x])
             pushStack v
-    else pushStack . W . show $ f x
+    else pushStack . A . show $ f x
 
 -------------------- Helpers for builtins --------------------
 
 anything (W "]") = False
-anything (W "[") = False
+anything (A "[") = False
 anything _ = True
 
 unpackR = do
@@ -93,9 +94,9 @@ unpackR = do
   x <- popArg
   case x of
     W "]" -> return ()
-    L l -> do pushStack $ W "["
+    L l -> do pushStack $ A "["
               appendStack l
-    V v -> do pushStack $ W "["
+    V v -> do pushStack $ A "["
               appendStackVar v
 
 appendStackVar v = addConstraintP ([V v], [L []]) `mplus` do
@@ -113,10 +114,10 @@ callVar v = addConstraintP ([V v], [L []]) `mplus`  do
   s <- getStack
   case gatherList 0 [] s of
     Left _ -> setStack [x, W "$#", y]
-    Right (_, s) -> setStack $ x : W "$#" : y : W "[" : s
+    Right (_, s) -> setStack $ x : W "$#" : y : A "[" : s
 
 gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
-gatherList n l (w@(W "[") : s)
+gatherList n l (w@(A "[") : s)
   | n <= 0 = Right (l,s)
   | otherwise = gatherList (n-1) (w:l) s
 gatherList n l (w:s) = gatherList n (w:l) s
@@ -217,9 +218,9 @@ builtins = wordMap [
   ("seq", do getArg anything
              force
              pushStack =<< popArg),
-  ("!", do getArg $ (== W "True") ||. isVar
+  ("!", do getArg $ (== A "True") ||. isVar
            x <- popArg
-           when (isVar x) $ addConstraintP ([x], [W "True"])
+           when (isVar x) $ addConstraintP ([x], [A "True"])
            force),
 
   -- lists
@@ -233,7 +234,7 @@ builtins = wordMap [
                x <- popArg
                pushStack x
                popArg >>= pushStack
-               pushStack . W . show $ x == W "["),
+               pushStack . A . show $ x == A "["),
 
   -- checks
   ("int?", isType isInt),
@@ -245,7 +246,7 @@ builtins = wordMap [
   ("hasIO?", isType hasIo),
   ("eq?", withArgs [anything, anything] 1 $ \[x, y] -> do
             guard . not $ isList x && isList y
-            pushStack . W . show $ x == y),
+            pushStack . A . show $ x == y),
 
   -- read/show
   ("show#", do getArg anything
@@ -280,8 +281,8 @@ builtins = wordMap [
 
 addConstraintP = propRules
 
-propRules ([W "True"], [W "eq?", v@(V _), x]) = substVar propRules v x
-propRules ([W "True"], [W "eq?", x, v@(V _)]) = substVar propRules v x
+propRules ([A "True"], [W "eq?", v@(V _), x]) = substVar propRules v x
+propRules ([A "True"], [W "eq?", x, v@(V _)]) = substVar propRules v x
 propRules ([I x], [W "add_int#", v@(V _), I y]) = substVar propRules v (I $ x - y)
 propRules ([I x], [W "add_int#", I y, v@(V _)]) = substVar propRules v (I $ x - y)
 propRules ([I x], [W "add_int#", v'@(V _), v@(V _)]) 
@@ -331,14 +332,50 @@ propRules ([h, L t], [W "popr", x@(V _)])
   = substVar propRules x . L $ h:t
 propRules ([h, t@(V _)], [W "popr", x@(V _)])
   = substVar propRules x . L $ [h, W "$#", t]
-propRules (l, r) | not (any isVar r) = unify l =<< eval r
+propRules (l, r) | not (any isVar r) = unify' l =<< eval r
 propRules c = addConstraint c
 
 hasVar (L xs) = any hasVar xs
 hasVar x = isVar x
 
-unify (x:l) (y:r) | x == y = unify l r
-                  | isVar x = substVar propRules x y >> unify l r
-unify [] _ = return ()
-unify x y = mzero
+unify' x y = do b <- unify (x ++ [V "@x"]) (y ++ [V "@y"]) []
+                mapM_ (\(v, x) -> substVar propRules (V v) x) b
 
+unify [] [] b = return b
+unify [] _ b = mzero
+unify _ [] b = mzero
+unify [V v@('@':_)] ys b = updateBindings v (L ys) b
+unify xs [V v@('@':_)] b = updateBindings v (L xs) b
+unify (V x:xs) (y:ys) b | not (isWord y) =
+  unify (subst (V x) y xs) ys =<< updateBindings x y b
+unify (x:xs) (V y:ys) b | not (isWord x) =
+  unify xs (subst (V y) x ys) =<< updateBindings y x b
+unify (L x:xs) (L y:ys) b = unify xs ys =<< unify x y b
+unify (L x:xs) (W "]":ys) b =
+  case gatherList 0 [] ys of
+    Left _ -> mzero
+    Right (y', ys') -> unify (L x:xs) (L (reverse y'):ys') b
+unify (W "]":xs) (L y:ys) b =
+  case gatherList 0 [] xs of
+    Left _ -> mzero
+    Right (x', xs') -> unify (L (reverse x'):xs') (L y:ys) b
+unify (x:xs) (y:ys) b
+  | x == y = unify xs ys b
+  | otherwise = mzero
+
+unifyTest x y = unify x' y' []
+  where Right x' = parseStack x
+        Right y' = parseStack y
+
+subst1 a b (L xs) = L (subst a b xs)
+subst1 a b x | a == x = b
+             | otherwise = x
+
+occurs a (L bs) = any (occurs a) bs
+occurs a b = a == b
+
+updateBindings v x b = do
+  guard . not $ occurs (V v) x
+  b' <- mapM (\(a, z) -> let z' = subst1 (V v) x z in
+                           guard (not $ occurs (V a) z') >> return (a, z')) b
+  return $ (v,x) : b
