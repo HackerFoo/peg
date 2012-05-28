@@ -26,9 +26,9 @@ Multiple definitions for a word cause the definitions to be substituted non-dete
 
 For example, to extend `sqrt` to operate on the word `Four`:
 
-    [Four eq? Two swap assert] "sqrt" :def
+    [Four eq? Two swap !] "sqrt" :def
 
-A word can only be resolved if the word can operate on its arguments.  The built-in words `assert` and `deny` can only be resolved on the arguments `True` and `False` respectively.  `ifte` is provided as part of the library.
+A word can only be resolved if the word can operate on its arguments.  The built-in word `!` can only be resolved on the argument `True`.  `ifte` is provided as part of the library.
 
     [ 1 ] 2 \/ popr --> [ ] 1
 
@@ -59,7 +59,7 @@ Instead of using a monad to implement pure functional I/O, Peg simply uses a tok
 
 `IO` can only be introduced from the top-level, by typing `IO`.  In other places, such as definitions and `read`, `IO` is parsed as a word with no special meaning.
 
-A variable in Peg appears as a string of letters preceded by `?`, such as `?x`.  A Peg variable is a logical variable.  A flexible typing system is provided in Peg in the form of constraints.  The type of a variable is its set of constraints.  This allows any predicate to be used as a type.
+A variable in Peg appears as a string of lowercase letters preceded by `?`, such as `?x`.  A Peg variable is a logical variable.  A flexible typing system is provided in Peg in the form of constraints.  The type of a variable is its set of constraints.  This allows any predicate to be used as a type.
 
 If the constraints can be narrowed to a finite number of values, these values will be substituted for the variable.
 

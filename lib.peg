@@ -272,8 +272,10 @@
 [over - 1+ swap [[1+] iterate] pushl swap take] "enumFromTo" :def
 
 -- ( [A] length -> Int )
-[0 length'] "length" :def
-[over null? nip [nip] [1+ [tail] dip length'] ifte] "length'" :def
+--[0 length'] "length" :def
+--[over null? nip [nip] [1+ [tail] dip length'] ifte] "length'" :def
+[0 swap [pop 1+] foldl] "length" :def
+--[0 swap [pop 1+] foldr] "length" :def -- loop undetected
 
 -- ( [A a] top -> [A a] a )
 [popr dup [pushr] dip seq] "top" :def

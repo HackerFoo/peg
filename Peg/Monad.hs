@@ -28,6 +28,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Control.Exception
 import Data.List
+import Data.Char (toUpper)
 
 import Debug.Trace
 
@@ -56,11 +57,13 @@ letNum x | x <= 0 = "a"
 
 newVar :: Peg Value
 newVar = do PegState s a w n c p <- get
-#ifdef DEBUG
-            when (n > 25) mzero
-#endif
             put $ PegState s a w (n+1) c p
             return . V $ '_': letNum n
+
+newSVar :: Peg Value
+newSVar = do PegState s a w n c p <- get
+             put $ PegState s a w (n+1) c p
+             return . S $ '_': map toUpper (letNum n)
 
 pushStack x = modify (\(PegState s a w n c p) -> PegState (x:s) a w n c p)
 appendStack x = modify (\(PegState s a w n c p) -> PegState (x++s) a w n c p)
@@ -87,28 +90,33 @@ peekArg :: Peg Value
 peekArg = do PegState s (x:a) w n c p <- get
              return x
 
-pushAnc = modify $ \(PegState s a w n c p) -> PegState s a w n c (s:p)
-popAnc = modify $ \(PegState s a w n c (_:p)) -> PegState s a w n c p
+pushAnc x = modify $ \(PegState s a w n c p) -> PegState s a w n c (x:p)
+popAnc = do PegState s a w n c (x:p) <- get
+            put $ PegState s a w n c p
+            return x
 
 doWord w = checkUnify $ do
   popStack
   m <- psWords <$> get
   pushArg (W w)
   case w `M.lookup` m of
-    Nothing -> mzero --pushStack (W w)
+    Nothing -> mzero
     Just [x] -> x 
     Just x -> msum x
   popArg
   return ()
 
+topIs _ [] = False
+topIs f (x:_) = f x
+
 checkUnify :: Peg () -> Peg ()
 checkUnify m = do
   PegState s _ _ _ _ p <- get
-  if null ||. ((isList ||. (== W "]")) . head) $ s
+  if topIs (isList ||. (== W "]")) s
     then m
-    else case maybeAny (\x -> ((,) x) <$> unify s (x ++ [V "@x"]) []) p of
+    else case maybeAny (\x -> ((,) x) <$> unify s (x ++ [S "X"]) []) p of
            Nothing -> --trace (show $ map showStack p) $
-                      pushAnc >> m >> popAnc
+                      pushAnc s >> m >> popAnc >> return ()
            Just (s', b) -> do v <- newVar
                               trace (showStack s ++ " == " ++
                                      showStack s') $ return ()
@@ -171,14 +179,14 @@ maybeAny f (x:xs) = case f x of
                       r -> r
 
 unify [] [] b = return b
+unify [s@(S _)] ys b = updateBindings s (L ys) b
+unify xs [s@(S _)] b = updateBindings s (L xs) b
 unify [] _ b = mzero
 unify _ [] b = mzero
-unify [V v@('@':_)] ys b = updateBindings v (L ys) b
-unify xs [V v@('@':_)] b = updateBindings v (L xs) b
 unify (V x:xs) (y:ys) b | not (isWord y) =
-  unify (subst (V x) y xs) ys =<< updateBindings x y b
+  unify (subst (V x) y xs) ys =<< updateBindings (V x) y b
 unify (x:xs) (V y:ys) b | not (isWord x) =
-  unify xs (subst (V y) x ys) =<< updateBindings y x b
+  unify xs (subst (V y) x ys) =<< updateBindings (V y) x b
 unify (L x:xs) (L y:ys) b = unify xs ys =<< unify x y b
 unify (L x:xs) (W "]":ys) b =
   case gatherList 0 [] ys of
@@ -200,9 +208,9 @@ occurs a (L bs) = any (occurs a) bs
 occurs a b = a == b
 
 updateBindings v x b = do
-  guard . not $ occurs (V v) x
-  b' <- mapM (\(a, z) -> let z' = subst1 (V v) x z in
-                           guard (not $ occurs (V a) z') >> return (a, z')) b
+  guard . not $ occurs v x
+  b' <- mapM (\(a, z) -> let z' = subst1 v x z in
+                           guard (not $ occurs v z') >> return (a, z')) b
   return $ (v,x) : b
 
 gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s

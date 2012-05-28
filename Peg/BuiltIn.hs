@@ -334,8 +334,8 @@ propRules ([h, t@(V _)], [W "popr", x@(V _)])
 propRules (l, r) | not (any (isVar ||. isIoPrimitive) r) = unify' l =<< eval r
 propRules c = addConstraint c
 
-unify' x y = do b <- unify (x ++ [V "@x"]) (y ++ [V "@y"]) []
-                mapM_ (\(v, x) -> substVar propRules (V v) x) b
+unify' x y = do b <- unify (x ++ [S "X"]) (y ++ [S "Y"]) []
+                mapM_ (\(v, x) -> substVar propRules v x) b
 
 unifyTest x y = unify x' y' []
   where Right x' = parseStack x

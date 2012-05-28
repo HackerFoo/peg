@@ -45,6 +45,7 @@ data Value = F Double  -- float
            | W String  -- word
            | A String  -- atom
            | V String  -- variable
+           | S String  -- stack variable
            | Io        -- I/O token
   deriving (Show, Eq, Ord)
 
@@ -80,6 +81,9 @@ isIo _ = False
 
 isVar (V _) = True
 isVar _ = False
+
+isStackVar (S _) = True
+isStackVar _ = False
 
 has p (L l) = any (has p) l
 has p x = p x
