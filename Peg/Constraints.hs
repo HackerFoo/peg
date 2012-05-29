@@ -100,7 +100,8 @@ addConstraint ([h, t@(V _)], [W "popr", x@(V _)])
   = substVar x . L $ [h, W "$#", t]
 addConstraint ([sv@(S _)], x)
   = addConstraint' ([sv], x) --substSVar sv x
-addConstraint (l, r) | not (any (has $ isVar ||. isStackVar ||. isIoPrimitive) r) = unify' l =<< ?eval r
+addConstraint (l, r)
+  | not (any (has $ isVar ||. isStackVar ||. isIoPrimitive) r) = unify' l =<< ?eval r
 addConstraint x = addConstraint' x
 
 addConstraint' x = modify $ \(PegState s a w n c p) -> PegState s a w n (x:c) p

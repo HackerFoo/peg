@@ -113,7 +113,7 @@ force = do
                    popStack
                    pushStack s'
                    pushStack v
-                   addConstraint ([S s], [v, s'])
+                   addConstraint ([v, s'], [S s])
     _ -> return ()
 
 bind nm l = modify $ \(PegState s a w n c p) ->

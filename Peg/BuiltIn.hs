@@ -105,7 +105,7 @@ unpackR = do
 appendStackVar v = do
   sv <- newSVar
   pushStack sv
-  addConstraint ([V v], [L [sv]])
+  addConstraint ([L [sv]], [V v])
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
@@ -115,7 +115,7 @@ callVar v = do
   case gatherList 0 [] st of
     Left _ -> setStack [sv]
     Right (_, s) -> setStack $ sv : A "[" : s
-  addConstraint ([V v], [L [sv]])
+  addConstraint ([L [sv]], [V v])
 
 wordMap = foldl' (flip (uncurry minsert)) M.empty
 
