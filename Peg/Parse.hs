@@ -45,10 +45,10 @@ atom = A <$> (((:) <$> upper <*> many (alphaNum <|> oneOf "?_'#")) <|>
               ((:[]) <$>  oneOf "[_"))
 
 var :: Parser Value
-var = V <$> (char '?' *> ((:) <$> lower <*> many (lower <|> digit <|> char '_')))
+var = V <$> (char '?' *> many1 (alphaNum <|> char '_'))
 
 svar :: Parser Value
-svar = S <$> (char '?' *> ((:) <$> upper <*> many (upper <|> digit <|> char '_')))
+svar = S <$> (char '@' *> many1 (alphaNum <|> char '_'))
 
 symbol :: Parser Value
 symbol = W <$> (many1 (oneOf "!@#$%^&*()-+=<>.~/?\\|") <|>
@@ -92,7 +92,7 @@ showStack s = drop 1 $ loop s []
         loop (W x : s) = loop s . ((' ':x) ++)
         loop (A x : s) = loop s . ((' ':x) ++)
         loop (V x : s) = loop s . ((' ':'?':x) ++)
-        loop (S x : s) = loop s . ((' ':'?':x) ++)
+        loop (S x : s) = loop s . ((' ':'@':x) ++)
         loop (Io : s) = loop s . (" IO" ++)
         loop (L [] : s) = loop s . (" [ ]" ++)
         loop (L x : s) = case toString (L x) of

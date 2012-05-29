@@ -1,4 +1,3 @@
-
 {- Copyright 2012 Dustin DeWeese
    This file is part of peg.
 
@@ -16,11 +15,14 @@
     along with peg.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-{-# LANGUAGE CPP #-}
-module Peg.Monad where
+{-# LANGUAGE CPP, ImplicitParams #-}
+module Peg.Monad (module Peg.Monad, newVar, newSVar) where
 
 import Peg.Types
-import Peg.Parse --(traceStack)
+import Peg.Parse
+import qualified Peg.Constraints as C
+import Peg.Constraints (newVar, newSVar)
+import Peg.Utils
 
 import Control.Applicative
 import Control.Monad.State
@@ -39,31 +41,6 @@ getArg check = do
   x <- popStack
   guard $ check x
   pushArg x
-
-a `dig` b = dig' a b []
-  where dig' a b c | a == 0 = c
-                   | otherwise = dig' d b (m:c)
-          where (d, m) = a `divMod` b
-
-a `ldig` b = dig' a b []
-  where dig' a b c | a == 0 = c
-                   | otherwise = dig' d b (m:c)
-          where (d, m) = (a-1) `divMod` b
-
-letNum :: Int -> String
-letNum x | x <= 0 = "a"
-         | otherwise = map (toEnum . (+a)) . (`ldig` 26) $ x + 1
-  where a = fromEnum 'a'
-
-newVar :: Peg Value
-newVar = do PegState s a w n c p <- get
-            put $ PegState s a w (n+1) c p
-            return . V $ '_': letNum n
-
-newSVar :: Peg Value
-newSVar = do PegState s a w n c p <- get
-             put $ PegState s a w (n+1) c p
-             return . S $ '_': map toUpper (letNum n)
 
 pushStack x = modify (\(PegState s a w n c p) -> PegState (x:s) a w n c p)
 appendStack x = modify (\(PegState s a w n c p) -> PegState (x++s) a w n c p)
@@ -106,22 +83,22 @@ doWord w = checkUnify $ do
   popArg
   return ()
 
-topIs _ [] = False
-topIs f (x:_) = f x
-
 checkUnify :: Peg () -> Peg ()
 checkUnify m = do
   PegState s _ _ _ _ p <- get
   if topIs (isList ||. (== W "]")) s
     then m
-    else case maybeAny (\x -> ((,) x) <$> unify s (x ++ [S "X"]) []) p of
+    else case maybeAny (\x -> ((,) x) <$> unify s (x ++ [S "x"]) []) p of
            Nothing -> --trace (show $ map showStack p) $
                       pushAnc s >> m >> popAnc >> return ()
-           Just (s', b) -> do v <- newVar
+           Just (s', b) -> do sv <- newSVar
                               trace (showStack s ++ " == " ++
                                      showStack s') $ return ()
-                              addConstraint ([v], [L s])
-                              setStack [W "$#", v]
+                              trace (show b) $ return ()
+                              addConstraint ([sv], s)
+                              setStack [sv]
+
+addConstraint = let ?eval = eval in C.addConstraint
 
 force = do
   st <- get
@@ -130,31 +107,14 @@ force = do
 #ifdef DEBUG
       >> traceStack
 #endif
+    (S s : _) -> (popStack >> addConstraint ([S s], [])) `mplus` do
+                   v <- newVar
+                   s' <- newSVar
+                   addConstraint ([S s], [v, s'])
+                   popStack
+                   pushStack s'
+                   pushStack v
     _ -> return ()
-
-(f ||. g) x = f x || g x
-(f &&. g) x = f x && g x
-
-minsert k x = M.insertWith (++) k [x]
-mlookup k = maybe [] id . M.lookup k
-
-subst a b xs = map f xs
-  where f (L xs) = L $ subst a b xs
-        f x | x == a = b
-            | otherwise = x
-
-addConstraint x = modify $ \(PegState s a w n c p) -> PegState s a w n (x:c) p
-
-substVar f x y = do
-  PegState s a w n c p <- get
-  let (cp, cn) = partition (\(l, r) -> x `elem` l || x `elem` r) c
-  put $ PegState (subst x y s) (subst x y a) w n cn p
-  mapM_ (\(l, r) -> f (subst x y l, subst x y r)) cp
-
-getConstraints :: Peg [(Stack, Stack)]
-getConstraints = psConstraints <$> get
-setConstraints c = do PegState s a w n _ p <- get
-                      put $ PegState s a w n c p
 
 bind nm l = modify $ \(PegState s a w n c p) ->
               PegState s a (minsert nm (f l) w) n c p
@@ -172,50 +132,3 @@ eval s' = do
   s'' <- getStack
   put st
   return s''
-
-maybeAny _ [] = Nothing
-maybeAny f (x:xs) = case f x of
-                      Nothing -> maybeAny f xs
-                      r -> r
-
-unify [] [] b = return b
-unify [s@(S _)] ys b = updateBindings s (L ys) b
-unify xs [s@(S _)] b = updateBindings s (L xs) b
-unify [] _ b = mzero
-unify _ [] b = mzero
-unify (V x:xs) (y:ys) b | not (isWord y) =
-  unify (subst (V x) y xs) ys =<< updateBindings (V x) y b
-unify (x:xs) (V y:ys) b | not (isWord x) =
-  unify xs (subst (V y) x ys) =<< updateBindings (V y) x b
-unify (L x:xs) (L y:ys) b = unify xs ys =<< unify x y b
-unify (L x:xs) (W "]":ys) b =
-  case gatherList 0 [] ys of
-    Left _ -> mzero
-    Right (y', ys') -> unify (L x:xs) (L (reverse y'):ys') b
-unify (W "]":xs) (L y:ys) b =
-  case gatherList 0 [] xs of
-    Left _ -> mzero
-    Right (x', xs') -> unify (L (reverse x'):xs') (L y:ys) b
-unify (x:xs) (y:ys) b
-  | x == y = unify xs ys b
-  | otherwise = mzero
-
-subst1 a b (L xs) = L (subst a b xs)
-subst1 a b x | a == x = b
-             | otherwise = x
-
-occurs a (L bs) = any (occurs a) bs
-occurs a b = a == b
-
-updateBindings v x b = do
-  guard . not $ occurs v x
-  b' <- mapM (\(a, z) -> let z' = subst1 v x z in
-                           guard (not $ occurs v z') >> return (a, z')) b
-  return $ (v,x) : b
-
-gatherList n l (w@(W "]") : s) = gatherList (n+1) (w:l) s
-gatherList n l (w@(A "[") : s)
-  | n <= 0 = Right (l,s)
-  | otherwise = gatherList (n-1) (w:l) s
-gatherList n l (w:s) = gatherList n (w:l) s
-gatherList n l [] = Left l

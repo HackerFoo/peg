@@ -25,6 +25,7 @@ import Peg.Types
 import Peg.BuiltIn
 import Peg.Monad
 import Peg.Parse
+import Peg.Utils
 
 import Control.Applicative
 import System.Console.Haskeline hiding (throwIO, handle)

@@ -21,6 +21,7 @@ module Peg.BuiltIn where
 import Peg.Types
 import Peg.Monad
 import Peg.Parse
+import Peg.Utils
 
 import Control.Applicative
 import Data.List
@@ -40,7 +41,7 @@ withArgs cI nO f = do
   if any isVar i
     then do w@(W _) <- peekArg
             vs <- replicateM nO newVar
-            addConstraintP (vs, w : reverse i)
+            addConstraint (vs, w : reverse i)
             appendStack vs
     else f i
 
@@ -65,9 +66,9 @@ opfi_f f = op' [isFloat, isInt] 1 $ \[F x, I y] -> [F $ x `f` y]
 opf_f f = op' [isFloat] 1 $ \[F x] -> [F $ f x]
 opf_i f = op' [isFloat] 1 $ \[F x] -> [I $ f x]
 opi_f f = op' [isInt] 1 $ \[I x] -> [F $ f x]
-op2i_b f = op' [isInt, isInt] 1 $ \[I x, I y] -> [W . show $ x `f` y]
-op2f_b f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [W . show $ x `f` y]
-op2c_b f = op' [isChar, isChar] 1 $ \[C x, C y] -> [W . show $ x `f` y]
+op2i_b f = op' [isInt, isInt] 1 $ \[I x, I y] -> [A . show $ x `f` y]
+op2f_b f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [A . show $ x `f` y]
+op2c_b f = op' [isChar, isChar] 1 $ \[C x, C y] -> [A . show $ x `f` y]
 op2i_2i f = op' [isInt, isInt] 2 $ \[I x, I y] -> let (u, w) = f x y in [I w, I u]
 
 isType :: (Value -> Bool) -> Peg ()
@@ -79,7 +80,7 @@ isType f = do
     then do w@(W _) <- peekArg
             --v <- newVar
             v <- return (A "True") `mplus` return (A "False")
-            addConstraintP ([v], [w, x])
+            addConstraint ([v], [w, x])
             pushStack v
     else pushStack . A . show $ f x
 
@@ -101,22 +102,20 @@ unpackR = do
 
 -- convert to constraint when accessing variable stack?
 
-appendStackVar v = addConstraintP ([V v], [L []]) `mplus` do
-  x <- newVar
-  y <- newVar
-  addConstraintP ([x, y], [W "popr", V v])
-  appendStack [x, W "$#", y]
+appendStackVar v = do
+  sv <- newSVar
+  addConstraint ([V v], [L [sv]])
+  pushStack sv
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
-callVar v = addConstraintP ([V v], [L []]) `mplus`  do
-  x <- newVar
-  y <- newVar
-  addConstraintP ([x, y], [W "popr", V v])
-  s <- getStack
-  case gatherList 0 [] s of
-    Left _ -> setStack [x, W "$#", y]
-    Right (_, s) -> setStack $ x : W "$#" : y : A "[" : s
+callVar v = do
+  sv <- newSVar
+  addConstraint ([V v], [L [sv]])
+  st <- getStack
+  case gatherList 0 [] st of
+    Left _ -> setStack [sv]
+    Right (_, s) -> setStack $ sv : A "[" : s
 
 wordMap = foldl' (flip (uncurry minsert)) M.empty
 
@@ -211,7 +210,7 @@ builtins = wordMap [
              pushStack =<< popArg),
   ("!", do getArg $ (== A "True") ||. isVar
            x <- popArg
-           when (isVar x) $ addConstraintP ([x], [A "True"])
+           when (isVar x) $ addConstraint ([x], [A "True"])
            force),
 
   -- lists
@@ -254,14 +253,14 @@ builtins = wordMap [
                   pushStack =<< popArg
                   --liftIO getChar >>=
                   v <- newVar
-                  addConstraintP ([v, Io], [W "getChar#", Io])
+                  addConstraint ([v, Io], [W "getChar#", Io])
                   pushStack v),
   ("putChar#", do getArg isChar
                   getArg isIo
                   io <- popArg
                   C c <- popArg
                   --liftIO $ putChar c
-                  addConstraintP ([Io], [W "putChar#", C c, Io])
+                  addConstraint ([Io], [W "putChar#", C c, Io])
                   pushStack io),
 
   -- word definition
@@ -273,70 +272,3 @@ builtins = wordMap [
   (":undef", do getArg isString
                 Just s <- toString <$> popArg
                 unbind s)]
-
-isIoPrimitive (W "getChar#") = True
-isIoPrimitive (W "putChar#") = True
-isIoPrimitive _ = False
-
-addConstraintP = propRules
-
-propRules ([A "True"], [W "eq?", v@(V _), x]) = substVar propRules v x
-propRules ([A "True"], [W "eq?", x, v@(V _)]) = substVar propRules v x
-propRules ([I x], [W "add_int#", v@(V _), I y]) = substVar propRules v (I $ x - y)
-propRules ([I x], [W "add_int#", I y, v@(V _)]) = substVar propRules v (I $ x - y)
-propRules ([I x], [W "add_int#", v'@(V _), v@(V _)]) 
-  | v == v' = guard (x `mod` 2 == 0) >> substVar propRules v (I $ x `div` 2)
-propRules ([I x], [W "sub_int#", v@(V _), I y]) = substVar propRules v (I $ y - x)
-propRules ([I x], [W "sub_int#", I y, v@(V _)]) = substVar propRules v (I $ y + x)
-propRules ([I x], [W "sub_int#", v'@(V _), v@(V _)])
-  | v == v' = guard (x == 0)
-propRules ([I x], [W "mul_int#", v@(V _), I y]) =
-  guard (x `mod` y == 0) >> substVar propRules v (I $ x `div` y)
-propRules ([I x], [W "mul_int#", I y, v@(V _)]) =
-  guard (x `mod` y == 0) >> substVar propRules v (I $ x `div` y)
-propRules ([I x], [W "mul_int#", v'@(V _), v@(V _)])
-  | v == v' = guard (x >= 0 && r*r == x) >> substVar propRules v (I r)
-  where r = round . sqrt . realToFrac $ x
-propRules ([I x], [W "div_int#", v@(V _), I y]) = 
-  guard (y `mod` x == 0) >> substVar propRules v (I $ y `div` x)
-propRules ([I x], [W "div_int#", I y, v@(V _)]) =
-  msum $ map (substVar propRules v . I) [y * x .. y*(x+1)-1]
-propRules ([I x], [W "div_int#", v'@(V _), v@(V _)])
-  | v == v' = guard $ x == 1
-propRules ([F x], [W "add_float#", v@(V _), F y]) =
-  substVar propRules v (F $ x - y)
-propRules ([F x], [W "add_float#", F y, v@(V _)]) =
-  substVar propRules v (F $ x - y)
-propRules ([F x], [W "add_float#", v@(V _), v'@(V _)])
-  | v == v' = substVar propRules v (F $ x / 2)
-propRules ([F x], [W "sub_float#", v@(V _), F y]) =
-  substVar propRules v (F $ y - x)
-propRules ([F x], [W "sub_float#", F y, v@(V _)]) =
-  substVar propRules v (F $ y + x)
-propRules ([F x], [W "sub_float#", v@(V _), v'@(V _)])
-  | v == v' = guard $ x == 0
-propRules ([F x], [W "mul_float#", v@(V _), F y]) =
-  substVar propRules v (F $ x / y)
-propRules ([F x], [W "mul_float#", F y, v@(V _)]) =
-  substVar propRules v (F $ x / y)
-propRules ([F x], [W "mul_float#", v@(V _), v'@(V _)])
-  | v == v' = guard (x >= 0) >> substVar propRules v (F $ sqrt x)
-propRules ([F x], [W "divide_float#", v@(V _), F y])
-  = substVar propRules v (F $ y / x)
-propRules ([F x], [W "divide_float#", F y, v@(V _)])
-  = substVar propRules v (F $ y * x)
-propRules ([F x], [W "divide_float#", v@(V _), v'@(V _)])
-  | v == v' = guard $ x == 1
-propRules ([h, L t], [W "popr", x@(V _)])
-  = substVar propRules x . L $ h:t
-propRules ([h, t@(V _)], [W "popr", x@(V _)])
-  = substVar propRules x . L $ [h, W "$#", t]
-propRules (l, r) | not (any (isVar ||. isIoPrimitive) r) = unify' l =<< eval r
-propRules c = addConstraint c
-
-unify' x y = do b <- unify (x ++ [S "X"]) (y ++ [S "Y"]) []
-                mapM_ (\(v, x) -> substVar propRules v x) b
-
-unifyTest x y = unify x' y' []
-  where Right x' = parseStack x
-        Right y' = parseStack y

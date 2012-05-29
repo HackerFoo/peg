@@ -1,5 +1,3 @@
-
-
 {- Copyright 2012 Dustin DeWeese
    This file is part of peg.
 
@@ -16,6 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with peg.  If not, see <http://www.gnu.org/licenses/>.
 -}
+
 module Peg.Types where
 
 import Control.Applicative
