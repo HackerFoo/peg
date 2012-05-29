@@ -200,8 +200,10 @@ builtins = wordMap [
             x <- popArg
             w <- popArg -- temporarily remove $ from the arg stack
             case x of
-              L l -> appendStack l >> force
-              V v -> callVar v 
+              L l -> appendStack l
+              V v -> callVar v
+              _ -> mzero
+            force
             pushArg w),
 
   -- control
@@ -210,7 +212,7 @@ builtins = wordMap [
              pushStack =<< popArg),
   ("!", do getArg $ (== A "True") ||. isVar
            x <- popArg
-           when (isVar x) $ addConstraint ([x], [A "True"])
+           when (isVar x) $ addConstraint ([A "True"], [x])
            force),
 
   -- lists
