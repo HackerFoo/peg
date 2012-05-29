@@ -95,8 +95,8 @@ checkUnify m = do
                               trace (showStack s ++ " == " ++
                                      showStack s') $ return ()
                               trace (show b) $ return ()
-                              addConstraint ([sv], s)
                               setStack [sv]
+                              addConstraint ([sv], s)
 
 addConstraint = let ?eval = eval in C.addConstraint
 
@@ -110,10 +110,10 @@ force = do
     (S s : _) -> (popStack >> addConstraint ([S s], [])) `mplus` do
                    v <- newVar
                    s' <- newSVar
-                   addConstraint ([S s], [v, s'])
                    popStack
                    pushStack s'
                    pushStack v
+                   addConstraint ([S s], [v, s'])
     _ -> return ()
 
 bind nm l = modify $ \(PegState s a w n c p) ->

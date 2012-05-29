@@ -99,9 +99,11 @@ addConstraint ([h, L t], [W "popr", x@(V _)])
 addConstraint ([h, t@(V _)], [W "popr", x@(V _)])
   = substVar x . L $ [h, W "$#", t]
 addConstraint ([sv@(S _)], x)
-  = substSVar sv x
+  = addConstraint' ([sv], x) --substSVar sv x
 addConstraint (l, r) | not (any (isVar ||. isIoPrimitive) r) = unify' l =<< ?eval r
-addConstraint x = modify $ \(PegState s a w n c p) -> PegState s a w n (x:c) p
+addConstraint x = addConstraint' x
+
+addConstraint' x = modify $ \(PegState s a w n c p) -> PegState s a w n (x:c) p
 
 unify' x y = do [sx, sy] <- replicateM 2 newSVar
                 b <- unify (x ++ [sx]) (y ++ [sy]) []

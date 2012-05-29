@@ -55,7 +55,7 @@ maybeAny f (x:xs) = case f x of
                       r -> r
 
 unify [] [] b = return b
-unify [s@(S _)] ys b = updateBindings s (L ys) b
+--unify [s@(S _)] ys b = updateBindings s (L ys) b
 unify xs [s@(S _)] b = updateBindings s (L xs) b
 unify [] _ b = mzero
 unify _ [] b = mzero

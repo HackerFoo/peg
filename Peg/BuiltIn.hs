@@ -41,8 +41,8 @@ withArgs cI nO f = do
   if any isVar i
     then do w@(W _) <- peekArg
             vs <- replicateM nO newVar
-            addConstraint (vs, w : reverse i)
             appendStack vs
+            addConstraint (vs, w : reverse i)
     else f i
 
 op' cI nO f = withArgs cI nO (appendStack . f)
@@ -80,8 +80,8 @@ isType f = do
     then do w@(W _) <- peekArg
             --v <- newVar
             v <- return (A "True") `mplus` return (A "False")
-            addConstraint ([v], [w, x])
             pushStack v
+            addConstraint ([v], [w, x])
     else pushStack . A . show $ f x
 
 -------------------- Helpers for builtins --------------------
@@ -104,18 +104,18 @@ unpackR = do
 
 appendStackVar v = do
   sv <- newSVar
-  addConstraint ([V v], [L [sv]])
   pushStack sv
+  addConstraint ([V v], [L [sv]])
 
 -- A (A -> B) -> B
 -- replaces stack with entirely new stack generated inductively on demand
 callVar v = do
   sv <- newSVar
-  addConstraint ([V v], [L [sv]])
   st <- getStack
   case gatherList 0 [] st of
     Left _ -> setStack [sv]
     Right (_, s) -> setStack $ sv : A "[" : s
+  addConstraint ([V v], [L [sv]])
 
 wordMap = foldl' (flip (uncurry minsert)) M.empty
 
@@ -253,15 +253,15 @@ builtins = wordMap [
                   pushStack =<< popArg
                   --liftIO getChar >>=
                   v <- newVar
-                  addConstraint ([v, Io], [W "getChar#", Io])
-                  pushStack v),
+                  pushStack v
+                  addConstraint ([v, Io], [W "getChar#", Io])),
   ("putChar#", do getArg isChar
                   getArg isIo
                   io <- popArg
                   C c <- popArg
                   --liftIO $ putChar c
-                  addConstraint ([Io], [W "putChar#", C c, Io])
-                  pushStack io),
+                  pushStack io
+                  addConstraint ([Io], [W "putChar#", C c, Io])),
 
   -- word definition
   (":def", do getArg isString
