@@ -73,7 +73,7 @@ load s m (input:r) =
   case parseStack input of
     Left e -> print e >> return m
     Right s -> do
-      let x = runIdentity $ evalStack (s, m, [])
+      let x = runIdentity $ evalStack (s, m, ([],[]))
       case x of
         (s', m', _) : _ -> load s' m' r
         [] -> load s m r
@@ -90,14 +90,14 @@ evalLoop p m = do
       Just input -> case parseStack input of
         Left e -> outputStrLn (show e) >> evalLoop p m
         Right s -> do
-          let x' = runIdentity $ evalStack (subst (A "IO") Io s, m, [])
+          let x' = runIdentity $ evalStack (subst (A "IO") Io s, m, ([], []))
           case take 5 x' of
             [] -> evalLoop s m
             ((s',m',c'):r) -> do
               mapM_ printAlt $ reverse r
               printConstraints c'
               evalLoop s' m'
-  where printConstraints c =
+  where printConstraints (c,_) =
           mapM_ (\(x, y) -> outputStrLn $ showStack x ++ " <-- " ++ showStack y) $ reverse c
         printAlt (s,_,c) = do
           printConstraints c

@@ -68,6 +68,7 @@ peekArg = do PegState s (x:a) w n c p <- get
              return x
 
 pushAnc x = modify $ \(PegState s a w n c p) -> PegState s a w n c (x:p)
+popAnc :: Peg Stack
 popAnc = do PegState s a w n c (x:p) <- get
             put $ PegState s a w n c p
             return x
@@ -83,12 +84,16 @@ doWord w = checkUnify $ do
   popArg
   return ()
 
+substAll bs x = foldr f x bs
+  where f (v@(V _), x) = substs v [x]
+        f (s@(S _), L x) = substs s x
+
 checkUnify :: Peg () -> Peg ()
 checkUnify m = do
   PegState s _ _ _ _ p <- get
   if topIs (isList ||. (== W "]")) s
     then m
-    else case maybeAny (\x -> ((,) x) <$> unify s (x ++ [S "x"]) []) p of
+    else case maybeAny (\x -> ((,) x) <$> unify (trim isStackVar s) (x ++ [S "_rest"]) []) p of
            Nothing -> --trace (show $ map showStack p) $
                       pushAnc s >> m >> popAnc >> return ()
            Just (s', b) -> do sv <- newSVar
@@ -96,9 +101,20 @@ checkUnify m = do
                                      showStack s') $ return ()
                               trace (show b) $ return ()
                               setStack [sv]
-                              addConstraint ([sv], s)
+                              addConstraint ([sv], substAll b s')
+                              mapM_ substBinding b
+  --where unifyS a b = trace (showStack a ++ " == " ++ showStack b) $ unify a b
+
+substBinding = let ?eval = eval in C.substBinding
+
+trim p [x] | p x = []
+           | otherwise = [x]
+trim _ [] = []
+trim p (x:xs) = x : trim p xs
+
 
 addConstraint = let ?eval = eval in C.addConstraint
+substVar = let ?eval = eval in C.substVar
 
 force = do
   st <- get

@@ -26,20 +26,25 @@ import Control.Applicative
 import Control.Monad.State
 import Data.List
 
-substVar x y = do
-  PegState s a w n c p <- get
-  let (cp, cn) = partition (\(l, r) -> x `elem` l || x `elem` r) c
-  put $ PegState (subst x y s) (subst x y a) w n cn p
-  mapM_ (\(l, r) -> addConstraint (subst x y l, subst x y r)) cp
+substVar :: (?eval :: Stack -> Peg Stack) => Value -> [Value] -> Peg ()
+substVar x ys = do
+  PegState s a w n (cc, cd) p <- get
+  let (cp, cc') = partition (\(l, r) -> x `elem` l || x `elem` r) cc
+  let cd' = map (\(l,r) -> (substs x ys l, substs x ys r)) $ cp ++ cd
+  put $ PegState (substs x ys s) (substs x ys a) w n (cc', cd') p
+  processConstraints
 
-substSVar x ys = do
-  PegState s a w n c p <- get
-  let (cp, cn) = partition (\(l, r) -> x `elem` l || x `elem` r) c
-  put $ PegState (substs x ys s) (substs x ys a) w n cn p
-  mapM_ (\(l, r) -> addConstraint (substs x ys l, substs x ys r)) cp
+processConstraints :: (?eval :: Stack -> Peg Stack) => Peg ()
+processConstraints = do
+  PegState s a w n (cc, cd) p <- get
+  if null cd
+    then return ()
+    else do put $ PegState s a w n (cc, tail cd) p
+            addConstraint $ head cd
+            processConstraints
 
 getConstraints :: Peg [(Stack, Stack)]
-getConstraints = psConstraints <$> get
+getConstraints = fst . psConstraints <$> get
 setConstraints c = do PegState s a w n _ p <- get
                       put $ PegState s a w n c p
 
@@ -47,68 +52,74 @@ isIoPrimitive (W "getChar#") = True
 isIoPrimitive (W "putChar#") = True
 isIoPrimitive _ = False
 
-addConstraint ([A "True"], [W "eq?", v@(V _), x]) = substVar v x
-addConstraint ([A "True"], [W "eq?", x, v@(V _)]) = substVar v x
-addConstraint ([I x], [W "add_int#", v@(V _), I y]) = substVar v (I $ x - y)
-addConstraint ([I x], [W "add_int#", I y, v@(V _)]) = substVar v (I $ x - y)
+addConstraint ([A "True"], [W "eq?", v@(V _), x]) = substVar v [x]
+addConstraint ([A "True"], [W "eq?", x, v@(V _)]) = substVar v [x]
+addConstraint ([I x], [W "add_int#", v@(V _), I y]) = substVar v [I $ x - y]
+addConstraint ([I x], [W "add_int#", I y, v@(V _)]) = substVar v [I $ x - y]
 addConstraint ([I x], [W "add_int#", v'@(V _), v@(V _)]) 
-  | v == v' = guard (x `mod` 2 == 0) >> substVar v (I $ x `div` 2)
-addConstraint ([I x], [W "sub_int#", v@(V _), I y]) = substVar v (I $ y - x)
-addConstraint ([I x], [W "sub_int#", I y, v@(V _)]) = substVar v (I $ y + x)
+  | v == v' = guard (x `mod` 2 == 0) >> substVar v [I $ x `div` 2]
+addConstraint ([I x], [W "sub_int#", v@(V _), I y]) = substVar v [I $ y - x]
+addConstraint ([I x], [W "sub_int#", I y, v@(V _)]) = substVar v [I $ y + x]
 addConstraint ([I x], [W "sub_int#", v'@(V _), v@(V _)])
   | v == v' = guard (x == 0)
 addConstraint ([I x], [W "mul_int#", v@(V _), I y]) =
-  guard (x `mod` y == 0) >> substVar v (I $ x `div` y)
+  guard (x `mod` y == 0) >> substVar v [I $ x `div` y]
 addConstraint ([I x], [W "mul_int#", I y, v@(V _)]) =
-  guard (x `mod` y == 0) >> substVar v (I $ x `div` y)
+  guard (x `mod` y == 0) >> substVar v [I $ x `div` y]
 addConstraint ([I x], [W "mul_int#", v'@(V _), v@(V _)])
-  | v == v' = guard (x >= 0 && r*r == x) >> substVar v (I r)
+  | v == v' = guard (x >= 0 && r*r == x) >> substVar v [I r]
   where r = round . sqrt . realToFrac $ x
 addConstraint ([I x], [W "div_int#", v@(V _), I y]) = 
-  guard (y `mod` x == 0) >> substVar v (I $ y `div` x)
+  guard (y `mod` x == 0) >> substVar v [I $ y `div` x]
 addConstraint ([I x], [W "div_int#", I y, v@(V _)]) =
-  msum $ map (substVar v . I) [y * x .. y*(x+1)-1]
+  msum $ map (\x -> substVar v [I x]) [y * x .. y*(x+1)-1]
 addConstraint ([I x], [W "div_int#", v'@(V _), v@(V _)])
   | v == v' = guard $ x == 1
 addConstraint ([F x], [W "add_float#", v@(V _), F y]) =
-  substVar v (F $ x - y)
+  substVar v [F $ x - y]
 addConstraint ([F x], [W "add_float#", F y, v@(V _)]) =
-  substVar v (F $ x - y)
+  substVar v [F $ x - y]
 addConstraint ([F x], [W "add_float#", v@(V _), v'@(V _)])
-  | v == v' = substVar v (F $ x / 2)
+  | v == v' = substVar v [F $ x / 2]
 addConstraint ([F x], [W "sub_float#", v@(V _), F y]) =
-  substVar v (F $ y - x)
+  substVar v [F $ y - x]
 addConstraint ([F x], [W "sub_float#", F y, v@(V _)]) =
-  substVar v (F $ y + x)
+  substVar v [F $ y + x]
 addConstraint ([F x], [W "sub_float#", v@(V _), v'@(V _)])
   | v == v' = guard $ x == 0
 addConstraint ([F x], [W "mul_float#", v@(V _), F y]) =
-  substVar v (F $ x / y)
+  substVar v [F $ x / y]
 addConstraint ([F x], [W "mul_float#", F y, v@(V _)]) =
-  substVar v (F $ x / y)
+  substVar v [F $ x / y]
 addConstraint ([F x], [W "mul_float#", v@(V _), v'@(V _)])
-  | v == v' = guard (x >= 0) >> substVar v (F $ sqrt x)
+  | v == v' = guard (x >= 0) >> substVar v [F $ sqrt x]
 addConstraint ([F x], [W "divide_float#", v@(V _), F y])
-  = substVar v (F $ y / x)
+  = substVar v [F $ y / x]
 addConstraint ([F x], [W "divide_float#", F y, v@(V _)])
-  = substVar v (F $ y * x)
+  = substVar v [F $ y * x]
 addConstraint ([F x], [W "divide_float#", v@(V _), v'@(V _)])
   | v == v' = guard $ x == 1
 addConstraint ([h, L t], [W "popr", x@(V _)])
-  = substVar x . L $ h:t
+  = substVar x [L $ h:t]
 addConstraint ([h, t@(V _)], [W "popr", x@(V _)])
-  = substVar x . L $ [h, W "$#", t]
+  = substVar x [L $ [h, W "$#", t]]
 addConstraint ([sv@(S _)], x)
   = addConstraint' ([sv], x) --substSVar sv x
+addConstraint (l, [v@(V _)]) = substVar v l
 addConstraint (l, r)
   | not (any (has $ isVar ||. isStackVar ||. isIoPrimitive) r) = unify' l =<< ?eval r
 addConstraint x = addConstraint' x
 
-addConstraint' x = modify $ \(PegState s a w n c p) -> PegState s a w n (x:c) p
+addConstraint' x = modify $ \(PegState s a w n (cc,cd) p) ->
+                              PegState s a w n (x:cc,cd) p
 
 unify' x y = do [sx, sy] <- replicateM 2 newSVar
                 b <- unify (x ++ [sx]) (y ++ [sy]) []
-                mapM_ (\(v, x) -> substVar v x) b
+                mapM_ substBinding b
+
+substBinding (v@(V _), x) = substVar v [x]
+substBinding (s@(S _), L x) = substVar s x
+substBinding _ = error "substBinding: invalid bindings"
 
 incVarCounter = do PegState s a w n c p <- get
                    put $ PegState s a w (n+1) c p
