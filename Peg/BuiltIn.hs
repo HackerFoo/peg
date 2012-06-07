@@ -47,18 +47,13 @@ withArgs cI nO f = do
 
 op' cI nO f = withArgs cI nO (appendStack . f)
 
-class Op f where
-  op :: f -> Peg ()
-
-instance Op (Integer -> Integer -> Integer) where op = op2i_i
-instance Op (Double -> Double -> Double) where op = op2f_f
-instance Op (Double -> Integer -> Double) where op = opfi_f
-instance Op (Double -> Double) where op = opf_f
-instance Op (Double -> Integer) where op = opf_i
-instance Op (Integer -> Double) where op = opi_f
-instance Op (Integer -> Integer -> Bool) where op = op2i_b
-instance Op (Double -> Double -> Bool) where op = op2f_b
-instance Op (Char -> Char -> Bool) where op = op2c_b
+op_ nI nO = do
+  replicateM_ nI $ getArg anything
+  i <- replicateM nI popArg
+  w@(W _) <- peekArg
+  vs <- replicateM nO newVar
+  appendStack vs
+  addConstraint (vs, w : reverse i)
 
 op2i_i f = op' [isInt, isInt] 1 $ \[I x, I y] -> [I $ x `f` y]
 op2f_f f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [F $ x `f` y]
@@ -124,15 +119,15 @@ wordMap = foldl' (flip (uncurry minsert)) M.empty
 builtins = wordMap [
 
   -- numeric
-  ("add_int#", op2i_i (+)),
-  ("sub_int#", op2i_i (-)),
-  ("mul_int#", op2i_i (*)),
-  ("div_int#", op2i_i div),
-  ("mod_int#", op2i_i mod),
-  ("divMod_int#", op2i_2i divMod),
-  ("quot_int#", op2i_i quot),
-  ("rem_int#", op2i_i rem),
-  ("quotRem_int#", op2i_2i quotRem),
+  ("add_int#", op_ 2 1),
+  ("sub_int#", op_ 2 1),
+  ("mul_int#", op_ 2 1),
+  ("div_int#", op_ 2 1),
+  ("mod_int#", op_ 2 1),
+  ("divMod_int#", op_ 2 2),
+  ("quot_int#", op_ 2 1),
+  ("rem_int#", op_ 2 1),
+  ("quotRem_int#", op_ 2 2),
   ("pos_power_int#", op2i_i (^)),
   ("pos_power_float#", opfi_f (^)),
   ("int_power_float#", opfi_f (^^)),
@@ -153,10 +148,10 @@ builtins = wordMap [
   ("asinh#", opf_f asinh),
   ("atanh#", opf_f atanh),
   ("acosh#", opf_f acosh),
-  ("add_float#", op2f_f (+)),
-  ("sub_float#", op2f_f (-)),
-  ("mul_float#", op2f_f (*)),
-  ("divide_float#", op2f_f (/)),
+  ("add_float#", op_ 2 1),
+  ("sub_float#", op_ 2 1),
+  ("mul_float#", op_ 2 1),
+  ("divide_float#", op_ 2 1),
   ("lt_int#", op2i_b (<)),
   ("lte_int#", op2i_b (<=)),
   ("gt_int#", op2i_b (>)),

@@ -86,3 +86,34 @@ isStackVar _ = False
 
 has p (L l) = any (has p) l
 has p x = p x
+
+class ValueT a where
+  toValue :: a -> Value
+  fromValue :: Value -> Maybe a
+
+instance ValueT Double where
+  toValue = F
+  fromValue (F x) = Just x
+  fromValue _ = Nothing
+
+instance ValueT Integer where
+  toValue = I
+  fromValue (I x) = Just x
+  fromValue _ = Nothing
+
+instance ValueT Char where
+  toValue = C
+  fromValue (C x) = Just x
+  fromValue _ = Nothing
+
+instance (ValueT a) => ValueT [a] where
+  toValue = L . map toValue
+  fromValue (L x) = mapM fromValue x
+  fromValue _ = Nothing
+
+ofType :: (ValueT a) => Value -> a -> Bool
+ofType v x = isJust $ fromValue v `asTypeOf` Just x
+
+val :: (ValueT a) => Value -> a
+val = fromJust . fromValue
+

@@ -113,7 +113,7 @@ trim _ [] = []
 trim p (x:xs) = x : trim p xs
 
 
-addConstraint = let ?eval = eval in C.addConstraint
+addConstraint x = let ?eval = eval in C.addConstraint x >> return ()
 substVar = let ?eval = eval in C.substVar
 
 force = do
