@@ -106,6 +106,12 @@ instance ValueT Char where
   fromValue (C x) = Just x
   fromValue _ = Nothing
 
+instance ValueT Bool where
+  toValue = A . show
+  fromValue (A "True") = Just True
+  fromValue (A "False") = Just False
+  fromValue _ = Nothing
+
 instance (ValueT a) => ValueT [a] where
   toValue = L . map toValue
   fromValue (L x) = mapM fromValue x

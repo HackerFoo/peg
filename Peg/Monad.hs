@@ -37,7 +37,6 @@ import Debug.Trace
 -- | pop an argument from the stack, push onto argument stack
 getArg check = do
   force
-  guard . not =<< emptyStack
   x <- popStack
   guard $ check x
   pushArg x
@@ -46,9 +45,12 @@ pushStack x = modify (\(PegState s a w n c p) -> PegState (x:s) a w n c p)
 appendStack x = modify (\(PegState s a w n c p) -> PegState (x++s) a w n c p)
 
 popStack :: Peg Value
-popStack = do PegState (x:s) a w n c p <- get
-              put $ PegState s a w n c p
-              return x
+popStack = do PegState s a w n c p <- get
+              guard . not $ null s
+              put $ PegState (tail s) a w n c p
+              return $ head s
+
+emptyStack :: Peg Bool
 emptyStack = null . psStack <$> get
 
 setStack s = modify (\(PegState _ a w n c p) -> PegState s a w n c p)
@@ -72,6 +74,12 @@ popAnc :: Peg Stack
 popAnc = do PegState s a w n c (x:p) <- get
             put $ PegState s a w n c p
             return x
+hidingAnc f = popAnc >>= \a -> f >> pushAnc a
+hidingAllAnc f = do PegState s a w n c p <- get
+                    put $ PegState s a w n c []
+                    f
+                    PegState s' a' w' n' c' p' <- get
+                    put $ PegState s' a' w' n' c' p 
 
 doWord w = checkUnify $ do
   popStack
@@ -87,6 +95,7 @@ doWord w = checkUnify $ do
 substAll bs x = foldr f x bs
   where f (v@(V _), x) = substs v [x]
         f (s@(S _), L x) = substs s x
+        f _ = id
 
 checkUnify :: Peg () -> Peg ()
 checkUnify m = do
@@ -135,7 +144,9 @@ force = do
 bind nm l = modify $ \(PegState s a w n c p) ->
               PegState s a (minsert nm (f l) w) n c p
   where f l = do w <- popArg
-                 appendStack l
+                 --appendStack l
+                 pushStack $ L l
+                 pushStack $ W "$#"
                  force
                  pushArg w
 

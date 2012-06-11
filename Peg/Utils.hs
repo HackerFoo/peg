@@ -74,7 +74,9 @@ unify (W "]":xs) (L y:ys) b =
     Right (x', xs') -> unify (L (reverse x'):xs') (L y:ys) b
 unify (x:xs) (y:ys) b
   | x == y = unify xs ys b
-  | otherwise = mzero
+--unify xs ys@(W _:_) b | not $ any isWord xs = return $ (L xs, L ys) : b
+--unify xs@(W _:_) ys b | not $ any isWord ys = return $ (L ys, L xs) : b
+unify _ _ _ = mzero
 
 subst1 a b (L xs) = L (subst a b xs)
 subst1 a b x | a == x = b

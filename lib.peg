@@ -65,7 +65,9 @@
 [hasIO? False eq?! dup#] "dup" :def
 [swap#] "swap" :def
 [list?! $#] "$" :def
+[swap <$#] "dip#" :def
 
+--[`[ swap <$# seq $#] "unpackR#" :def
 [list?! dip#] "dip" :def
 [null? False eq?! unpackR# `] dip# seq] "popr" :def
 [[list?! unpackR#] dip# seq `] seq $#] "pushr" :def
@@ -234,6 +236,8 @@
 
 -- ( a [B] (a b -> a) foldr -> a )
 [over null? nip [pop2] [[popr swap] dip dup dip2 foldr] ifte] "foldr" :def
+
+[over null? nip [pop2] [[popr swap] dip dup dip2 foldrS S] ifte] "foldrS" :def
 
 -- ( [A] (a a -> a) foldr1 -> a )
 [[popr swap] dip foldr] "foldr1" :def
