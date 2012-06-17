@@ -55,6 +55,15 @@ op_ nI nO = do
   appendStack vs
   addConstraint (vs, w : reverse i)
 
+op_t = do
+  getArg anything
+  x <- popArg
+  w@(W _) <- peekArg
+  v <- newVar
+  pushStack x
+  pushStack v
+  addConstraint ([v, x], [w, x])
+
 op2i_i f = op' [isInt, isInt] 1 $ \[I x, I y] -> [I $ x `f` y]
 op2f_f f = op' [isFloat, isFloat] 1 $ \[F x, F y] -> [F $ x `f` y]
 opfi_f f = op' [isFloat, isInt] 1 $ \[F x, I y] -> [F $ x `f` y]
@@ -219,17 +228,21 @@ builtins = wordMap [
                pushStack . A . show $ x == A "["),
 
   -- checks
-  ("int?", isType isInt),
-  ("float?", isType isFloat),
-  ("word?", isType $ isWord &&. (/= W "]")),
-  ("list?", isType $ isList ||. (== W "]")),
-  ("char?", isType isChar),
-  ("io?", isType isIo),
-  ("hasIO?", isType $ has isIo),
+  ("int?", op_t),
+  ("float?", op_t),
+  --("word?", isType $ isWord &&. (/= W "]")),
+  ("word?", op_t),
+  --("list?", isType $ isList ||. (== W "]")),
+  ("list?", op_t),
+  ("char?", op_t),
+  ("io?", op_t),
+  ("hasIO?", op_t),
+  ("eq?", op_ 2 1),
+{-
   ("eq?", withArgs [anything, anything] 1 $ \[x, y] -> do
             guard . not $ isList x && isList y
             pushStack . A . show $ x == y),
-
+-}
   -- read/show
   ("show#", do getArg anything
                x <- popArg

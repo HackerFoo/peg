@@ -117,7 +117,29 @@ instance (ValueT a, ValueT b, ValueT c, ValueT d, Eq c, Eq d) => Op (a -> b -> (
 eqC [x, y] [A "True"]
   | isVar x = substVar x [y]
   | isVar y = substVar y [x]
-eqC _ _ = return False
+  | isList x && isList y = mzero
+  | x == y = return True
+  | x /= y = mzero
+eqC [x, y] [A "False"]
+  | not (isVar x) && not (isVar y) =
+      if x /= y
+        then return True
+        else mzero
+  | otherwise = return False
+eqC [x, y] [V v]
+  | not (isVar x) && not (isVar y) = substVar (V v) [A . show $ x == y]
+  | otherwise = return False
+eqC _ _ = mzero
+
+--predC p [V v] [x, y] | V v /= y = substVar (V v) [y] >> predC p [y] [x, y]
+--predC p [y] [x, V v] | V v /= y = substVar (V v) [y] >> predC p [y] [x, y]
+predC _ [V _] [_, _] = return False
+predC p [x] [A "False", _] = guard (not $ p x) >> return True
+predC p [x] [A "True", _] = guard (p x) >> return True
+predC p [x] [V v, _]
+  | not (isVar x) = substVar (V v) [A . show $ p x]
+  | otherwise = return False
+predC _ _ _ = mzero
 
 poprC [h, L t] [x@(V _)] = substVar x [L $ h:t]
 poprC [h, t@(V _)] [x@(V _)] = substVar x [L $ [h, W "$#", t]]
@@ -195,7 +217,14 @@ wordConstraints = M.fromList [
   ("intToFloat#", op $ int_float realToFrac),
   ("round#", op $ float_int round),
   ("floor#", op $ float_int floor),
-  ("ceiling#", op $ float_int ceiling)]
+  ("ceiling#", op $ float_int ceiling),
+  ("int?", predC isInt),
+  ("float?", predC isFloat),
+  ("word?", predC isWord),
+  ("list?", predC isList),
+  ("char?", predC isChar),
+  ("io?", predC isIo),
+  ("hasIO?", predC $ has isIo)]
 
 int :: (Integer -> a) -> Integer -> a
 int = id
