@@ -45,7 +45,7 @@ import Debug.Trace
 import Search
 
 evalStack (s, m, c) = runBFSAll $ do
-  PegState s _ m _ c _ <- execStateT force $ PegState s [] m 0 c []
+  PegState s _ m _ c _ _ <- execStateT force $ PegState s [] m 0 c M.empty []
   return (s, m, c)
 
 hGetLines h = do

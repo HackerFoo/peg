@@ -125,6 +125,9 @@ wordMap = foldl' (flip (uncurry minsert)) M.empty
 
 -------------------- Built-ins --------------------
 
+-- need to parse into form [Word0 out0 in0 in1, Word1 out1 out2 in2, ...]
+-- infinite DAG
+
 builtins = wordMap [
 
   -- numeric

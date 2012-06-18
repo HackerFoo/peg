@@ -41,45 +41,56 @@ getArg check = do
   guard $ check x
   pushArg x
 
-pushStack x = modify (\(PegState s a w n c p) -> PegState (x:s) a w n c p)
-appendStack x = modify (\(PegState s a w n c p) -> PegState (x++s) a w n c p)
+pushStack x = modify (\(PegState s a w n c b p) -> PegState (x:s) a w n c b p)
+appendStack x = modify (\(PegState s a w n c b p) -> PegState (x++s) a w n c b p)
 
 popStack :: Peg Value
-popStack = do PegState s a w n c p <- get
+popStack = do PegState s a w n c b p <- get
               guard . not $ null s
-              put $ PegState (tail s) a w n c p
+              put $ PegState (tail s) a w n c b p
               return $ head s
 
 emptyStack :: Peg Bool
 emptyStack = null . psStack <$> get
 
-setStack s = modify (\(PegState _ a w n c p) -> PegState s a w n c p)
+setStack s = modify (\(PegState _ a w n c b p) -> PegState s a w n c b p)
 
 getStack :: Peg Stack
 getStack = psStack <$> get
 
-pushArg x = modify (\(PegState s a w n c p) -> PegState s (x:a) w n c p)
+pushArg x = modify (\(PegState s a w n c b p) -> PegState s (x:a) w n c b p)
 
 popArg :: Peg Value
-popArg = do PegState s (x:a) w n c p <- get
-            put $ PegState s a w n c p
+popArg = do PegState s (x:a) w n c b p <- get
+            put $ PegState s a w n c b p
             return x
 
 peekArg :: Peg Value
-peekArg = do PegState s (x:a) w n c p <- get
+peekArg = do PegState s (x:a) w n c b p <- get
              return x
 
-pushAnc x = modify $ \(PegState s a w n c p) -> PegState s a w n c (x:p)
+pushAnc x = modify $ \(PegState s a w n c b p) -> PegState s a w n c b (x:p)
 popAnc :: Peg Stack
-popAnc = do PegState s a w n c (x:p) <- get
-            put $ PegState s a w n c p
+popAnc = do PegState s a w n c b (x:p) <- get
+            put $ PegState s a w n c b p
             return x
 hidingAnc f = popAnc >>= \a -> f >> pushAnc a
-hidingAllAnc f = do PegState s a w n c p <- get
-                    put $ PegState s a w n c []
+hidingAllAnc f = do PegState s a w n c b p <- get
+                    put $ PegState s a w n c b []
                     f
-                    PegState s' a' w' n' c' p' <- get
-                    put $ PegState s' a' w' n' c' p 
+                    PegState s' a' w' n' c' b' p' <- get
+                    put $ PegState s' a' w' n' c' b' p
+
+varBind vn x = modify $ \(PegState s a w n c b p) ->
+                            PegState s a w n c (M.insert vn x b) p
+
+getVarBindings :: Peg (Map String Value)
+getVarBindings = psBindings <$> get
+
+substStack :: Stack -> Peg Stack
+substStack s = flip map s . f <$> getVarBindings
+  where f m (V n) | Just x <- n `M.lookup` m = x
+        f _ x = x
 
 doWord w = checkUnify $ do
   popStack
@@ -99,7 +110,7 @@ substAll bs x = foldr f x bs
 
 checkUnify :: Peg () -> Peg ()
 checkUnify m = do
-  PegState s _ _ _ _ p <- get
+  PegState s _ _ _ _ _ p <- get
   if topIs (isList ||. (== W "]")) s
     then m
     else case maybeAny (\x -> ((,) x) <$> unify (trim isStackVar s) (x ++ [S "_rest"]) []) p of
@@ -141,8 +152,8 @@ force = do
                    addConstraint ([v, s'], [S s])
     _ -> return ()
 
-bind nm l = modify $ \(PegState s a w n c p) ->
-              PegState s a (minsert nm (f l) w) n c p
+bind nm l = modify $ \(PegState s a w n c b p) ->
+              PegState s a (minsert nm (f l) w) n c b p
   where f l = do w <- popArg
                  --appendStack l
                  pushStack $ L l
@@ -150,11 +161,11 @@ bind nm l = modify $ \(PegState s a w n c p) ->
                  force
                  pushArg w
 
-unbind nm = modify $ \(PegState s a w n c p) -> PegState s a (M.delete nm w) n c p
+unbind nm = modify $ \(PegState s a w n c b p) -> PegState s a (M.delete nm w) n c b p
 
 eval s' = do
-  st@(PegState s a w n c p) <- get
-  put $ PegState s' [] w n c p
+  st@(PegState s a w n c b p) <- get
+  put $ PegState s' [] w n c b p
   force
   s'' <- getStack
   put st

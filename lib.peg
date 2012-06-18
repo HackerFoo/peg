@@ -279,7 +279,7 @@
 --[0 length'] "length" :def
 --[over null? nip [nip] [1+ [tail] dip length'] ifte] "length'" :def
 [0 swap [pop 1+] foldl] "length" :def
---[0 swap [pop 1+] foldr] "length" :def -- loop undetected
+[0 swap [pop 1+] foldr] "length_r" :def -- loop undetected
 
 -- ( [A a] top -> [A a] a )
 [popr dup [pushr] dip seq] "top" :def

@@ -34,6 +34,7 @@ data PegState = PegState { psStack :: Stack,
                            psWords :: Env,
                            psUniqueVarCounter :: Int,
                            psConstraints :: ([(Stack, Stack)], [(Stack, Stack)]),
+                           psBindings :: Map String Value,
                            psAncestors :: [Stack] }
 type Peg = StateT PegState Tree
 data Rule = Rule { getRule :: Stack -> Peg Stack }

@@ -33,26 +33,26 @@ import Debug.Trace
 
 substVar :: Value -> [Value] -> Peg Bool
 substVar x ys = do
-  PegState s a w n (cc, cd) p <- get
+  PegState s a w n (cc, cd) b p <- get
   let (cp, cc') = partition (\(l, r) -> x `elem` l || x `elem` r) cc
   let cd' = map (\(l,r) -> (substs x ys l, substs x ys r)) $ cp ++ cd
-  put $ PegState (substs x ys s) (substs x ys a) w n (cc', cd') p
+  put $ PegState (substs x ys s) (substs x ys a) w n (cc', cd') b p
   processConstraints
   return True
 
 processConstraints :: Peg ()
 processConstraints = do
-  PegState s a w n (cc, cd) p <- get
+  PegState s a w n (cc, cd) b p <- get
   if null cd
     then return ()
-    else do put $ PegState s a w n (cc, tail cd) p
+    else do put $ PegState s a w n (cc, tail cd) b p
             addConstraint $ head cd
             processConstraints
 
 getConstraints :: Peg [(Stack, Stack)]
 getConstraints = fst . psConstraints <$> get
-setConstraints c = do PegState s a w n _ p <- get
-                      put $ PegState s a w n c p
+setConstraints c = do PegState s a w n _ b p <- get
+                      put $ PegState s a w n c b p
 
 isIoPrimitive (W "getChar#") = True
 isIoPrimitive (W "putChar#") = True
@@ -240,8 +240,8 @@ addConstraint (l, [v@(V _)]) = substVar v l
 addConstraint x = addConstraint' x >> return True
 
 addConstraint' :: ([Value], [Value]) -> Peg ()
-addConstraint' x = modify (\(PegState s a w n (cc,cd) p) ->
-                             PegState s a w n (x:cc,cd) p)
+addConstraint' x = modify (\(PegState s a w n (cc,cd) b p) ->
+                             PegState s a w n (x:cc,cd) b p)
 
 unify' x y = do [sx, sy] <- replicateM 2 newSVar
                 b <- unify (x ++ [sx]) (y ++ [sy]) []
@@ -252,8 +252,8 @@ substBinding (s@(S _), L x) = substVar s x
 substBinding (L x, L y) = addConstraint (x, y)
 substBinding _ = error "substBinding: invalid bindings"
 
-incVarCounter = do PegState s a w n c p <- get
-                   put $ PegState s a w (n+1) c p
+incVarCounter = do PegState s a w n c b p <- get
+                   put $ PegState s a w (n+1) c b p
                    return n
 
 newVar :: Peg Value
