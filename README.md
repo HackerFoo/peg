@@ -1,6 +1,13 @@
 Peg Programming Language
 ========================
 
+**Note**
+--------
+
+Progress has stopped on this interpreter in order to work on a compiler.  The language has also changed somewhat as I've worked on the compiler.
+
+See the [pegc project](https://github.com/HackerFoo/pegc) for more information on the compiler (which also implements an interpreter).
+
 Overview
 --------
 

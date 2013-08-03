@@ -476,3 +476,11 @@
 
 [dup# [1- count2] dip# 0 eq? False eq?!] "count2" :def
 [dup# 0 eq?!] "count2" :def
+
+[dup 0 <= [pop] [1- swap 1+ swap add_it] ifte] "add_it" :def
+[dup 0 <= [] [1- count_down] ifte] "count_down" :def
+
+-- simple recursive word that does not use names for recursion or choice
+[[swap dup 5 < [! nip] [not! 5 - swap dup $] \/ $] dup $] "sub5" :def
+
+[dup [fix2] dip $] "fix2" :def

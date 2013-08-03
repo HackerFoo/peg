@@ -1,0 +1,6 @@
+*.o
+*.hi
+*~
+*.o-boot
+*.hi-boot
+_darcs

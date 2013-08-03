@@ -279,4 +279,8 @@ builtins = wordMap [
               bind s l),
   (":undef", do getArg isString
                 Just s <- toString <$> popArg
-                unbind s)]
+                unbind s),
+  ("|", do getArg anything
+           x <- popArg
+           pushStack $ W "|"
+           pushStack x)]

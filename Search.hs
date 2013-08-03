@@ -41,7 +41,7 @@ instance Monad Tree where
 
 instance MonadPlus Tree where
   mzero = Empty
-  mplus = Node 
+  mplus = Node
 -}
 
 type Tree = TreeT Identity
@@ -73,13 +73,14 @@ instance MonadIO (TreeT IO) where
                
 instance MonadTrans TreeT where
   lift = TreeT . liftM LeafT
-               
+
 data Queue a = Queue [a] ([a] -> [a])
 
 emptyQueue = Queue [] id
 
 pushQueue x (Queue l f) = Queue l (f . (x:))
 
+popQueue :: Queue a -> (a, Queue a)
 popQueue = popQ' . forceQueue
   where popQ' (Queue (x:l) f) = (x, Queue l f)
         popQ' (Queue [] f) = error "popQ: empty queue"
@@ -89,6 +90,7 @@ forceQueue q = q
 
 listQueue (Queue l f) = l ++ f []
 
+nullQueue :: Queue a -> Bool
 nullQueue = nullQ' . forceQueue
   where nullQ' (Queue l _) = null l
 

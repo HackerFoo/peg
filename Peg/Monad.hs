@@ -92,7 +92,7 @@ substStack s = flip map s . f <$> getVarBindings
   where f m (V n) | Just x <- n `M.lookup` m = x
         f _ x = x
 
-doWord w = checkUnify $ do
+doWord w = do --checkUnify $ do
   popStack
   m <- psWords <$> get
   pushArg (W w)

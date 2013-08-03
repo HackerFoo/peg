@@ -18,3 +18,7 @@ vim:
 .PHONY: gvim
 gvim:
 	gvim $(SOURCE) &
+
+.PHONY: emacs
+emacs:
+	emacs $(SOURCE) &
